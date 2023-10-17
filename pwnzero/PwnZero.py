@@ -113,7 +113,7 @@ class PwnZero(plugins.Plugin):
         retVal = []
         for c in s:
             retVal.append(ord(c))
-        
+
         return retVal
 
     def _send_data(self, param: int, args) -> bool:
@@ -130,15 +130,15 @@ class PwnZero(plugins.Plugin):
         for i in args:
             if not self._is_byte(i):
                 return False
-        
+
         # Now we know everything is a valid byte
-        
+
         # Build the sending data
         data = [self.PROTOCOL_START]
         data.append(param)
         for arg in args:
             data.append(arg)
-        
+
         data.append(self.PROTOCOL_END)
 
         # Send data to flipper
@@ -175,7 +175,7 @@ class PwnZero(plugins.Plugin):
         # Make sure channel is valid
         if not (0 <= channel <= 255):
             return False
-        
+
         channelStr = "*"
 
         if channel != 0:
@@ -219,7 +219,7 @@ class PwnZero(plugins.Plugin):
     def set_friend(self) -> bool:
         """
         Friend is currently not supported
-        
+
         :return: False
         """
         return False
@@ -227,7 +227,7 @@ class PwnZero(plugins.Plugin):
     def set_mode(self, mode: PwnMode) -> bool:
         """
         Set the mode on the Pwnagotchi
-        
+
         :param: mode: Mode to set
         :return: If the command was sent successfully
         """
@@ -247,7 +247,7 @@ class PwnZero(plugins.Plugin):
     def set_message(self, message: str) -> bool:
         """
         Sets the displayed message on the Pwnagotchi
-        
+
         :param: message: Message to set
         :return: If the command was sent successfully
         """
@@ -287,13 +287,13 @@ class PwnZero(plugins.Plugin):
 
         # APS
         aps = ui.get('aps')
-        
+
         # name
         self.set_name(ui.get('name').replace(">", ""))
 
         # Face
         face = ui.get('face')
-        
+
         faceEnum = None
         if face == faces.LOOK_R:
             faceEnum = PwnFace.LOOK_R
