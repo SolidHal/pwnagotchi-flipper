@@ -1,6 +1,7 @@
 import serial
 from enum import Enum
 
+import pwnagotchi
 import pwnagotchi.plugins as plugins
 import pwnagotchi.ui.faces as faces
 
@@ -65,10 +66,10 @@ class PwnFace(Enum):
 
 
 class PwnZero(plugins.Plugin):
-    __author__ = "github.com/Matt-London"
-    __version__ = "1.0.0"
+    __author__ = "github.com/Matt-London, eva@evaemmerich.com"
+    __version__ = "2.0.0"
     __license__ = "MIT"
-    __description__ = "Plugin to display the Pwnagotchi on the Flipper Zero"
+    __description__ = "Plugin to the integrate Pwnagotchi into the Flipper Zero"
 
     PROTOCOL_START   = 0x02
     PROTOCOL_END     = 0x03
@@ -82,16 +83,41 @@ class PwnZero(plugins.Plugin):
         """
         self._port = port
         self._baud = baud
+        # when running is True, we should continue looking for a flipper to chat with
+        # when false, we should shut down
+        self.running = True
+        self.connected = False
 
         try:
             self._serialConn = serial.Serial(port, baud)
         except:
             raise "Cannot bind to port ({}) with baud ({})".format(port, baud)
 
-    def close(self):
-        """
-        Closes the connection to the Flipper Zero
-        """
+    def on_loaded(self):
+        #TODO tell the flipper we are ready, ensure it responds properly
+        # try to complete a connection
+        while self.running:
+            time.sleep(1)
+
+            # TODO
+
+            # send hello
+
+            # wait for reply
+            # if no reply, wait and send hello again
+
+            # if reply, set connected=True and move to waiting for message loop
+
+
+
+
+
+
+    def on_unload(self):
+        self.connected = False
+        self.running = False
+
+        # clean up the serial connection
         self._serialConn.close()
 
     def _is_byte(self, i: int) -> bool:
@@ -353,3 +379,11 @@ class PwnZero(plugins.Plugin):
 
         shakesCurr = handshakes.split(' ')[0]
         shakesTotal = handshakes.split(' ')[1].replace(')', '').replace('(', '')
+
+    def _receive_command(self):
+        pass
+
+
+    def cmd_reboot(self):
+        # mode = 'MANU' if agent.mode == 'manual' else 'AUTO'
+        # pwnagotchi.reboot(mode=mode)
