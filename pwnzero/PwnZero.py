@@ -24,6 +24,7 @@ class FlipperCommand(Enum):
     # Control Values
     SYN   = 0x16
     ACK   = 0x06
+    NAK   = 0x15
 
     # Flipper parameters
     UI_FACE        = 0x04
@@ -45,6 +46,7 @@ class PwnCommand(Enum):
     # Control Values
     SYN   = 0x16
     ACK   = 0x06
+    NAK   = 0x15
 
     # pwnagotchi commands
     REBOOT         = 0x04
@@ -94,12 +96,56 @@ class PwnFace(Enum):
     UPLOAD1         = 0x1D
     UPLOAD2         = 0x1E
 
-class ReceiveMalformed(Exception):
+class SerialConnException(Exception):
     pass
+
+class ReceivedNone(Exception):
+    pass
+
+class PwnZeroSerialException(Exception):
+    pass
+
+
+class SendLengthIncorrect(PwnZeroSerialException):
+    pass
+
+class ReceivedMalformedStart(PwnZeroSerialException):
+    pass
+
+class ReceivedMalformedEnd(PwnZeroSerialException):
+    pass
+
+class ReceivedNak(PwnZeroSerialException):
+    pass
+
+class ReceivedInvalidAck(PwnZeroSerialException):
+    pass
+
+# helper functions
+def _str_to_bytes(s: str):
+    """
+    Converts a string into a list of ascii encoded bytes
+
+    :param: s: String to convert
+    :return: List of bytes
+    """
+    retVal = []
+    for c in s:
+        retVal.append(ord(c))
+
+    return retVal
+
+def _ui_diff(current_ui, new_ui, key):
+    if current_ui is not None:
+        if current_ui.get(key) == new_ui.get(key):
+            return False
+
+    return True
+
 
 class Flipper():
 
-    def __init__(self, port: str = "/dev/serial0", baud: int = 115200, timeout: int = 3):
+    def __init__(self, port: str = "/dev/serial0", baud: int = 115200, timeout: float = 0.5):
         """
         Construct a Flipper object, this will create the connection to the flipper
 
@@ -116,22 +162,10 @@ class Flipper():
 
         self._serial_conn = None
 
-    def _str_to_bytes(self, s: str):
-        """
-        Converts a string into a list of ascii encoded bytes
-
-        :param: s: String to convert
-        :return: List of bytes
-        """
-        retVal = []
-        for c in s:
-            retVal.append(ord(c))
-
-        return retVal
 
     def _send_string(self, cmd: int, msg_string: str) -> bool:
-        ascii_encoded_string = self._str_to_bytes(msg_string)
-        return self._send_bytes(cmd, ascii_encoded_string)
+        ascii_encoded_string = _str_to_bytes(msg_string)
+        self._send_bytes(cmd, ascii_encoded_string)
 
     def _send_bytes(self, cmd: int, body: [int]) -> bool:
         """
@@ -146,18 +180,30 @@ class Flipper():
 
         # Send data to flipper
         logging.info(f"[PwnZero] sending bytes {packet}")
-        return self._serial_conn.write(packet) == len(packet)
+        if not self._serial_conn.write(packet) == len(packet):
+            raise SendLengthIncorrect()
+
+        # expect an ACK reply
+        rec = self.receive_bytes()
+        if rec != [PwnCommand.ACK.value]:
+            logging.error(f"[PwnZero] received non-ack response to syn: {rec}, expected: {[FlipperCommand.ACK.value]}")
+            raise ReceivedInvalidAck(f"Expceted {[FlipperCommand.ACK.value]}, received: {rec}")
 
     def receive_bytes(self):
+
+        def cleanup_and_raise(e):
+            self._serial_conn.reset_input_buffer()
+            raise e
+
         try:
             packet = self._serial_conn.read_until(expected=str(Packet.END.value))
         except Exception as e:
             logging.error(f"[PwnZero] failed reading from serial {e}")
-            self._serial_conn.reset_input_buffer()
-            raise e
+            cleanup_and_raise(SerialConnException(e))
 
         if len(packet) < 1:
-            return None
+            # nothing to clean up, so just raise
+            raise ReceivedNone()
 
         # convert from byte string in the form  b'\x02\x06\x03'
         # to a list of bytes [2, 6, 3]
@@ -165,19 +211,22 @@ class Flipper():
 
         # if Packet.END.value is not in the line, we received something but timed out before seeing the end marker
         if packet[-1] != Packet.END.value:
-            logging.error(f"[PwnZero] timed out reading packet, did we disconnect? received: {packet}")
-            self._serial_conn.reset_input_buffer()
-            raise ReceiveMalformed()
+            logging.error(f"[PwnZero] timed out reading Packet.END.value. received: {packet}")
+            cleanup_and_raise(ReceivedMalformedEnd(f"timed out reading Packet.END.value. received: {packet}"))
 
         if packet[0] != Packet.START.value:
             logging.error(f"[PwnZero] packet did not begin with Packet.START.value. received: {packet}")
-            self._serial_conn.reset_input_buffer()
-            raise ReceiveMalformed()
+            cleanup_and_raise(ReceivedMalformedStart(f"packet did not begin with Packet.START.value. received: {packet}"))
 
         logging.info(f"[PwnZero] received packet: {packet}")
-
         # strip the Packet control characters
-        return packet[1:-1]
+        body = packet[1:-1]
+
+        if body[0] == PwnCommand.NAK.value:
+            logging.error(f"[PwnZero] received NAK: {body}")
+            cleanup_and_raise(ReceivedNak(f"NAK: {body}"))
+
+        return body
 
     def open_serial(self):
         logging.info(f"[PwnZero] opening serial connection")
@@ -188,6 +237,7 @@ class Flipper():
             # only really necessary if we start missing bytes
             # self._serial_conn = serial.Serial(self._port, self._baud, self._timeout)
             self._serial_conn = serial.Serial(self._port, self._baud, timeout=self._timeout)
+            self._serial_conn.reset_input_buffer()
         except:
             raise "Cannot bind to port ({}) with baud ({})".format(self._port, self._baud)
         logging.info(f"[PwnZero] opened serial connection")
@@ -196,53 +246,39 @@ class Flipper():
         # clean up the serial connection
         self._serial_conn.close()
 
-    def synack(self):
+    def send_syn(self):
         """
-        Sends a syn packet to the flipper, wait to read an ack
-        waits self._timeout, which is configured when creating _serial_conn
+        Sends a syn packet to the flipper
 
-        :return: If synack was successful
+        :return: If syn ack was successful
         """
         self._send_bytes(FlipperCommand.SYN.value, [])
-        try:
-            rec = self.receive_bytes()
-        except Exception as e:
-            logging.info(f"[PwnZero] exception on ack: {e}")
-            return False
 
-        if rec is None:
-            logging.info(f"[PwnZero] nothing received, the flipper may not be present")
-            return False
-
-        if rec != [FlipperCommand.ACK.value]:
-            logging.error(f"[PwnZero] received non-ack response to syn: {rec}, expected: {[FlipperCommand.ACK.value]}")
-            return False
-        return True
-
-    def update_ui(self, ui) -> bool:
+    def update_ui(self, current_ui, new_ui) -> bool:
         """
         Set the ui elements of the Pwnagotchi
         Calls all Flipper methods that start with "set_"
 
         :return: If any ui setter fails, log the failure and return False
         """
-        all_ret = True
         for method in self._ui_setters:
-            ret = getattr(self, method)(ui)  # call
-            if not ret:
-                logging.error(f"[PwnZero] {method} failed")
-                all_ret = False
+            try:
+                ret = getattr(self, method)(current_ui, new_ui)  # call
+            except Exception as e:
+                logging.error(f"[PwnZero] error when calling ui setter {method}: {type(e).__name__}:{e.args}")
 
-        return all_ret
-
-    def set_face(self, ui) -> bool:
+    def set_face(self, current_ui, new_ui) -> bool:
         """
         Set the face of the Pwnagotchi
 
         :return: If the command was sent successfully
         """
 
-        face = ui.get('face')
+        face = new_ui.get('face')
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='face'):
+            return True
+
+        logging.info(f"[PwnZero] ui differs, setting face")
 
         faceEnum = None
         if face == faces.LOOK_R:
@@ -296,37 +332,47 @@ class Flipper():
         elif face == faces.UPLOAD2:
             faceEnum = PwnFace.UPLOAD2
 
-        return self._send_bytes(FlipperCommand.UI_FACE.value, [face.value])
+        return self._send_bytes(FlipperCommand.UI_FACE.value, [faceEnum.value])
 
-    def set_name(self, ui) -> bool:
+    def set_name(self, current_ui, new_ui) -> bool:
         """
         Set the name of the Pwnagotchi
 
         :return: If the command was sent successfully
         """
-        name = ui.get('name').replace(">", "")
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='name'):
+            return True
+
+        logging.info(f"[PwnZero] ui differs, setting name")
+        name = new_ui.get('name').replace(">", "")
         return self._send_string(FlipperCommand.UI_NAME.value, name)
 
-    def set_channel(self, ui) -> bool:
+    def set_channel(self, current_ui, new_ui) -> bool:
         """
         Set the channel of the Pwnagotchi
 
         :return: If the command was sent successfully
         """
 
-        channel = ui.get('channel')
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='channel'):
+            return True
+        logging.info(f"[PwnZero] ui differs, setting channel")
+        channel = new_ui.get('channel')
         return self._send_string(FlipperCommand.UI_CHANNEL.value, channel)
 
-    def set_aps(self, ui) -> bool:
+    def set_aps(self, current_ui, new_ui) -> bool:
         """
         Set the APs of the Pwnagotchi
 
         :return: If the command was sent successfully
         """
 
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='aps'):
+            return True
+        logging.info(f"[PwnZero] ui differs, setting aps")
         #TODO fix ap handling
-        aps = ui.get('aps')
-        logging.info(f"[PwnZero] pwnzero aps = {aps}")
+        aps = new_ui.get('aps')
+        # logging.info(f"[PwnZero] pwnzero aps = {aps}")
         #:param: apsCurrent: Number of APS this session
         #:param: apsTotal: Number of APS in unit lifetime
 
@@ -334,14 +380,18 @@ class Flipper():
 
         return True
 
-    def set_uptime(self, ui) -> bool:
+    def set_uptime(self, current_ui, new_ui) -> bool:
         """
         Sets the uptime ui element of the Pwnagotchi on the flipper ui
 
         :return: If the command was sent successfully
         """
 
-        uptime = ui.get('uptime')
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='uptime'):
+            return True
+
+        logging.info(f"[PwnZero] ui differs, setting uptime")
+        uptime = new_ui.get('uptime')
         uptimeSplit = uptime.split(':')
 
         hh = int(uptimeSplit[0])
@@ -359,31 +409,39 @@ class Flipper():
 
         return self._send_string(FlipperCommand.UI_UPTIME.value, "{}:{}:{}".format(hhA, mmA, ssA))
 
-    def set_friend(self) -> bool:
+    def set_friend(self, current_ui, new_ui) -> bool:
         """
         Friend is currently not supported
 
         :return: False
         """
+        # if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='friend'):
+        #     return True
+        # logging.info(f"[PwnZero] ui differs, setting friend")
         return True
 
-    def set_mode(self, ui) -> bool:
+    def set_mode(self, current_ui, new_ui) -> bool:
         """
         Set the mode ui element of the Pwnagotchi on the flipper ui
 
         :return: If the command was sent successfully
         """
+
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='mode'):
+            return True
+
+        logging.info(f"[PwnZero] ui differs, setting mode")
         mode = None
-        if ui.get('mode') == 'AI':
+        if new_ui.get('mode') == 'AI':
             mode = PwnMode.AI
-        elif ui.get('mode') == 'MANU':
+        elif new_ui.get('mode') == 'MANU':
             mode = PwnMode.MANU
-        elif ui.get('mode') == 'AUTO':
+        elif new_ui.get('mode') == 'AUTO':
             mode = PwnMode.AUTO
 
         return self._send_bytes(FlipperCommand.UI_MODE.value, [mode.value])
 
-    def set_handshakes(self, ui) -> bool:
+    def set_handshakes(self, current_ui, new_ui) -> bool:
         """
         Set the number of handshakes ui element of the Pwnagotchi on the flipper ui
 
@@ -392,9 +450,13 @@ class Flipper():
         :return: If the command was sent successfully
         """
 
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='shakes'):
+            return True
+
+        logging.info(f"[PwnZero] ui differs, setting handshakes")
         #TODO fix handshakes
-        handshakes = ui.get('shakes')
-        logging.info(f"[PwnZero] handshakes = {handshakes}")
+        handshakes = new_ui.get('shakes')
+        # logging.info(f"[PwnZero] handshakes = {handshakes}")
 
         # shakesCurr = handshakes.split(' ')[0]
         # shakesTotal = handshakes.split(' ')[1].replace(')', '').replace('(', '')
@@ -403,14 +465,17 @@ class Flipper():
 
         return True
 
-    def set_status(self, ui) -> bool:
+    def set_status(self, current_ui, new_ui) -> bool:
         """
         Sets the displayed status ui element of the Pwnagotchi on the flipper ui
 
         :param: status: Status to set
         :return: If the command was sent successfully
         """
-        status = ui.get('status')
+        if not _ui_diff(current_ui=current_ui, new_ui=new_ui, key='status'):
+            return True
+        logging.info(f"[PwnZero] ui differs, setting status")
+        status = new_ui.get('status')
         #TODO reformat to fix flipper screen size restrictions first?
         return self._send_string(FlipperCommand.UI_STATUS.value, status)
 
@@ -437,6 +502,10 @@ class PwnZero(plugins.Plugin):
         self.synack_sleep = 5
 
 
+        self.new_ui = None
+        self.current_ui = None
+
+
     def on_loaded(self):
         logging.info(f"[PwnZero] plugin loaded")
         self._flipper.open_serial()
@@ -447,21 +516,37 @@ class PwnZero(plugins.Plugin):
         while self.running:
             # TODO backoff how aggressively we syn over time
             time.sleep(self.synack_sleep)
-            # send a syn and wait a moment for an ack
-            if self._flipper.synack():
+            # synack
+            try:
+                self._flipper.send_syn()
+            except Exception as e:
+                # we don't care much about exceptions when initialy trying to establish communication
+                logging.info(f"[PwnZero] error while attemption to synack: {type(e).__name__}:{e.args}")
+            else:
                 logging.info(f"[PwnZero] synack complete, flipper connected!")
                 self.connected = True
                 self.error_count = 0
+                self.current_ui = None
                 while self.connected:
-                    # main communication loop, wait for packets
-                    rec = None
+                    # main communication loop
+
+                    # send ui updates
+                    self._flipper.update_ui(self.current_ui, self.new_ui)
+                    self.current_ui = self.new_ui
+
+                    # receive commands from flipper
                     try:
                         rec = self._flipper.receive_bytes()
-                    except ReceiveMalformed:
+                    except PwnZeroSerialException as e:
+                        logging.info(f"[PwnZero] receive exception in main loop: {type(e).__name__}:{e.args}")
                         self.error_count += 1
                         if self.error_count == self.max_error:
+                            logging.info(f"[PwnZero] max_error count {self.max_error} reached, disconnecting")
                             self.connected = False
-                    if rec is not None and self.connected:
+                    except ReceivedNone:
+                        # nothing to do
+                        pass
+                    else:
                         # we have some command to handle!
                         logging.info(f"[PwnZero] received flipper message: {rec}")
                         # TODO do some validation to see if its something we can actually handle
@@ -476,12 +561,8 @@ class PwnZero(plugins.Plugin):
         pass
 
     def on_ui_update(self, ui):
-        if self.connected:
-            #TODO can we have the pwnagotchi ack each update, or will that slow us down too much?
-            # it would be nice to do so. Otherwise, just try to do a syn-ack some times?
-            self._flipper.update_ui(ui)
-        else:
-            logging.info("[PwnZero] ignoring ui update, no flipper connected")
+        logging.debug("[PwnZero] on_ui_update")
+        self.new_ui = ui
 
     def on_rebooting(self):
         pass

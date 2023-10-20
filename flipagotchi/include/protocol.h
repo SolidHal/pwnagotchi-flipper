@@ -17,6 +17,7 @@
 // Used for basic communication
 #define CMD_SYN  0x16
 #define CMD_ACK  0x06
+#define CMD_NAK  0x15
 
 // Flipper Zero Commands
 // These commands can be sent from the pwnagotchi to the flipper

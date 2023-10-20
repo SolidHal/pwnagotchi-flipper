@@ -51,6 +51,18 @@ const NotificationSequence sequence_notification = {
     NULL,
 };
 
+static void flipagotchi_send_ack(const uint8_t received_cmd) {
+  uint8_t ack_msg[] = {PACKET_START, CMD_ACK, PACKET_END};
+  FURI_LOG_I("PWN", "valid command %02X received, replying with ACK", received_cmd);
+  furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, ack_msg, sizeof(ack_msg));
+}
+
+static void flipagotchi_send_nak(const uint8_t received_cmd) {
+  uint8_t nak_msg[] = {PACKET_START, CMD_NAK, PACKET_END};
+  FURI_LOG_I("PWN", "invalid command %02X received, replying with NAK", received_cmd);
+  furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, nak_msg, sizeof(nak_msg));
+}
+
 static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
     if (message_queue_has_message(model->queue)) {
         PwnCommand cmd;
@@ -62,21 +74,24 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process SYN
             case CMD_SYN: {
-              // reply with an ACK, aka 0x06
-              uint8_t ack_msg[] = {PACKET_START, CMD_ACK, PACKET_END};
-              FURI_LOG_I("PWN", "SYN received, replying with ACK: %02X %02X %02X",ack_msg[0], ack_msg[1], ack_msg[2]);
-              furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, ack_msg, sizeof(ack_msg));
+              flipagotchi_send_ack(cmd.code);
               break;
             }
 
             // Process Face
             case FLIPPER_CMD_UI_FACE: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 model->pwn->face = cmd.arguments[0];
                 break;
             }
 
             // Process Name
             case FLIPPER_CMD_UI_NAME: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Write over hostname with nothing
                 strncpy(model->pwn->hostname, "", PWNAGOTCHI_MAX_HOSTNAME_LEN);
 
@@ -93,6 +108,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process channel
             case FLIPPER_CMD_UI_CHANNEL: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Write over channel with nothing
                 strncpy(model->pwn->channel, "", PWNAGOTCHI_MAX_CHANNEL_LEN);
 
@@ -109,6 +127,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process APS (Access Points)
             case FLIPPER_CMD_UI_APS: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Write over APS with nothing
                 strncpy(model->pwn->apStat, "", PWNAGOTCHI_MAX_APS_LEN);
 
@@ -124,6 +145,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process uptime
             case FLIPPER_CMD_UI_UPTIME: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Write over uptime with nothing
                 strncpy(model->pwn->uptime, "", PWNAGOTCHI_MAX_UPTIME_LEN);
 
@@ -139,12 +163,18 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process friend
             case FLIPPER_CMD_UI_FRIEND: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Friend not implemented yet
                 break;
             }
 
             // Process mode
             case FLIPPER_CMD_UI_MODE: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 enum PwnagotchiMode mode;
 
                 switch (cmd.arguments[0]) {
@@ -168,6 +198,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process Handshakes
             case FLIPPER_CMD_UI_HANDSHAKES: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Write over handshakes with nothing
                 strncpy(model->pwn->handshakes, "", PWNAGOTCHI_MAX_HANDSHAKES_LEN);
 
@@ -183,6 +216,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process status
             case FLIPPER_CMD_UI_STATUS: {
+                // send ack before handling to avoid stalling the pwnagotchi
+                flipagotchi_send_ack(cmd.code);
+
                 // Write over the status with nothing
                 strncpy(model->pwn->status, "", PWNAGOTCHI_MAX_STATUS_LEN);
 
@@ -195,8 +231,12 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 }
                 break;
             }
+            default: {
+                // didn't match any of the known FLIPPER_CMDs
+                // reply with a NAK
+                flipagotchi_send_nak(cmd.code);
+            }
         }
-
     }
 
     return false;
