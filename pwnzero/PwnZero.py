@@ -1,133 +1,115 @@
+import logging
 import serial
+import time
 from enum import Enum
 
 import pwnagotchi
 import pwnagotchi.plugins as plugins
 import pwnagotchi.ui.faces as faces
 
-class PwnZeroParam(Enum):
+
+class Packet(Enum):
     """
-    Flipper Zero Parameters
-    These are the parameters that can be changed on the Flipper Zero
+    These are control bytes and mark the beginning and end of a packet
+    These values are reserved, and cannot be used as commands or in the body of a packet
+    """
+    START   = 0x02
+    END     = 0x03
+
+class FlipperCommand(Enum):
+    """
+    Flipper Zero Commands
     The values are the bytes that are being sent to the Flipper Zero
-    to change the parameter
-    The documentation for the Flipper Zero can be found here:
-    https://github.com/Matt-London/pwnagotchi-flipper/blob/main/doc/Protocol.md
     """
-    FACE        = 4
-    NAME        = 5
-    CHANNEL     = 6
-    APS         = 7
-    UPTIME      = 8
-    FRIEND      = 9
-    MODE        = 10
-    HANDSHAKES  = 11
-    MESSAGE     = 12
+    # Control Values
+    SYN   = 0x16
+    ACK   = 0x06
+
+    # Flipper parameters
+    UI_FACE        = 0x04
+    UI_NAME        = 0x05
+    UI_APS         = 0x07
+    UI_UPTIME      = 0x08
+    UI_FRIEND      = 0x09
+    UI_MODE        = 0x0A
+    UI_HANDSHAKES  = 0x0B
+    UI_STATUS      = 0x0C
+    UI_CHANNEL     = 0x0D
+
+
+class PwnCommand(Enum):
+    """
+    These commands can be sent from the Flipper to the pwnagotchi
+    """
+    # Control Values
+    SYN   = 0x16
+    ACK   = 0x06
+
+    # pwnagotchi commands
+    REBOOT         = 0x04
+    SHUTDOWN       = 0x05
+    MODE           = 0x07
+    UI_REFRESH     = 0x08 # request a ui refresh from the pwnagotchi
+
+    #TODO add ability to send commands to bettercap
 
 class PwnMode(Enum):
-        """
-        Embedded class with the mode
-        """
-        MANU    = 4
-        AUTO    = 5
-        AI      = 6
+    """
+    Embedded class with the mode
+    """
+    MANU    = 0x04
+    AUTO    = 0x05
+    AI      = 0x06
 
 class PwnFace(Enum):
     """
     Embedded class with all face parameters
     """
-    NO_FACE         = 4
-    DEFAULT_FACE    = 5
-    LOOK_R          = 6
-    LOOK_L          = 7
-    LOOK_R_HAPPY    = 8
-    LOOK_L_HAPPY    = 9
-    SLEEP           = 10
-    SLEEP2          = 11
-    AWAKE           = 12
-    BORED           = 13
-    INTENSE         = 14
-    COOL            = 15
-    HAPPY           = 16
-    GRATEFUL         = 17
-    EXCITED         = 18
-    MOTIVATED       = 19
-    DEMOTIVATED     = 20
-    SMART           = 21
-    LONELY          = 22
-    SAD             = 23
-    ANGRY           = 24
-    FRIEND          = 25
-    BROKEN          = 26
-    DEBUG           = 27
-    UPLOAD          = 28
-    UPLOAD1         = 29
-    UPLOAD2         = 30
+    NO_FACE         = 0x04
+    DEFAULT_FACE    = 0x05
+    LOOK_R          = 0x06
+    LOOK_L          = 0x07
+    LOOK_R_HAPPY    = 0x08
+    LOOK_L_HAPPY    = 0x09
+    SLEEP           = 0x0A
+    SLEEP2          = 0x0B
+    AWAKE           = 0x0C
+    BORED           = 0x0D
+    INTENSE         = 0x0E
+    COOL            = 0x0F
+    HAPPY           = 0x10
+    GRATEFUL        = 0x11
+    EXCITED         = 0x12
+    MOTIVATED       = 0x13
+    DEMOTIVATED     = 0x14
+    SMART           = 0x15
+    LONELY          = 0x16
+    SAD             = 0x17
+    ANGRY           = 0x18
+    FRIEND          = 0x19
+    BROKEN          = 0x1A
+    DEBUG           = 0x1B
+    UPLOAD          = 0x1C
+    UPLOAD1         = 0x1D
+    UPLOAD2         = 0x1E
 
-
-class PwnZero(plugins.Plugin):
-    __author__ = "github.com/Matt-London, eva@evaemmerich.com"
-    __version__ = "2.0.0"
-    __license__ = "MIT"
-    __description__ = "Plugin to the integrate Pwnagotchi into the Flipper Zero"
-
-    PROTOCOL_START   = 0x02
-    PROTOCOL_END     = 0x03
+class Flipper():
 
     def __init__(self, port: str = "/dev/serial0", baud: int = 115200):
         """
-        Construct a PwnZero object, this will create the connection
+        Construct a Flipper object, this will create the connection to the flipper
 
         :param: port: Port on which the UART of the Flipper is connected to
         :param: baud: Baudrate for communication to the Flipper (default 115200)
         """
+
+        # rather than have to keep a list of all of our ui setters, generate one
+        self._ui_setters = [method for method in dir(self) if callable(getattr(self, method)) if method.startswith('set_')]
+
         self._port = port
         self._baud = baud
-        # when running is True, we should continue looking for a flipper to chat with
-        # when false, we should shut down
-        self.running = True
-        self.connected = False
 
-        try:
-            self._serialConn = serial.Serial(port, baud)
-        except:
-            raise "Cannot bind to port ({}) with baud ({})".format(port, baud)
-
-    def on_loaded(self):
-        #TODO tell the flipper we are ready, ensure it responds properly
-        # try to complete a connection
-        while self.running:
-            time.sleep(1)
-
-            # TODO
-
-            # send hello
-
-            # wait for reply
-            # if no reply, wait and send hello again
-
-            # if reply, set connected=True and move to waiting for message loop
-
-
-
-
-
-
-    def on_unload(self):
-        self.connected = False
-        self.running = False
-
-        # clean up the serial connection
-        self._serialConn.close()
-
-    def _is_byte(self, i: int) -> bool:
-        """
-        Checks if a passed in integer is a valid byte (0 <= i < 256)
-
-        :param: i: Integer to check
-        :return: If it is a valid byte
-        """
-        return 0 <= i < 256
+        self._serial_conn = None
 
     def _str_to_bytes(self, s: str):
         """
@@ -142,182 +124,58 @@ class PwnZero(plugins.Plugin):
 
         return retVal
 
-    def _send_data(self, param: int, args) -> bool:
-        """
-        Sends data using protocol v2 over the serial port to the Flipper Zero
+    def _send_string(self, cmd: int, msg_string: str) -> bool:
+        byte_encoded_string = self._str_to_bytes(msg_string)
+        return self._send_bytes(cmd, byte_encoded_string)
 
-        :param: param: Parameter that is being changed
-        :param: args: Arguments to pass to the flipper
+    def _send_bytes(self, cmd: int, body: [int]) -> bool:
+        """
+        Sends a packet using protocol v3 over the serial port to the Flipper Zero
+
+        :param: cmd: Parameter that is being changed
+        :param: body: Arguments to pass to the flipper. Must be a list of bytes
         :return: If transmission was successful
         """
-        # Make sure everything is a valid byte
-        if not self._is_byte(param):
-            return False
-        for i in args:
-            if not self._is_byte(i):
-                return False
-
-        # Now we know everything is a valid byte
-
-        # Build the sending data
-        data = [self.PROTOCOL_START]
-        data.append(param)
-        for arg in args:
-            data.append(arg)
-
-        data.append(self.PROTOCOL_END)
+        # Build the packet to send
+        packet = [Packet.START, cmd] + body + [Packet.END]
 
         # Send data to flipper
-        return self._serialConn.write(data) == len(data)
+        return self._serial_conn.write(body) == len(packet)
 
-    # Public method commands
-    def set_face(self, face: PwnFace) -> bool:
+    def connect(self):
+        try:
+            self._serial_conn = serial.Serial(self._port, self._baud)
+        except:
+            raise "Cannot bind to port ({}) with baud ({})".format(self._port, self._baud)
+
+    def disconnect(self):
+        # clean up the serial connection
+        self._serial_conn.close()
+
+
+    def update_ui(self, ui) -> bool:
+        """
+        Set the ui elements of the Pwnagotchi
+        Calls all Flipper methods that start with "set_"
+
+        :return: If any ui setter fails, log the failure and return False
+        """
+        all_ret = True
+        for method in self._ui_setters:
+            ret = getattr(self, method)(ui)  # call
+            if not ret:
+                logging.error(f"{method} failed")
+                all_ret = False
+
+        return all_ret
+
+    def set_face(self, ui) -> bool:
         """
         Set the face of the Pwnagotchi
 
-        :param: face: Face to set on the device
         :return: If the command was sent successfully
         """
-        return self._send_data(PwnZeroParam.FACE.value, [face.value])
 
-    def set_name(self, name: str) -> bool:
-        """
-        Set the name of the Pwnagotchi
-
-        :param: name: Name to set on the pwnagotchi
-        :return: If the command was sent successfully
-        """
-        data = self._str_to_bytes(name)
-        return self._send_data(PwnZeroParam.NAME.value, data)
-
-    def set_channel(self, channel: int) -> bool:
-        """
-        Set the channel of the Pwnagotchi
-        Send a 0 for * (all channels)
-
-        :param: channel: Channel to set on pwnagotchi
-        :return: If the command was sent successfully
-        """
-        # Make sure channel is valid
-        if not (0 <= channel <= 255):
-            return False
-
-        channelStr = "*"
-
-        if channel != 0:
-            channelStr = str(channel)
-
-        data = self._str_to_bytes(channelStr)
-        return self._send_data(PwnZeroParam.CHANNEL.value, data)
-
-    def set_aps(self, apsCurrent: int, apsTotal) -> bool:
-        """
-        Set the APs of the Pwnagotchi
-
-        :param: apsCurrent: Number of APS this session
-        :param: apsTotal: Number of APS in unit lifetime
-        :return: If the command was sent successfully
-        """
-        data = self._str_to_bytes("{} ({})".format(apsCurrent, apsTotal))
-        return self._send_data(PwnZeroParam.APS.value, data)
-
-    def set_uptime(self, hh: int, mm: int, ss: int) -> bool:
-        """
-        Sets the uptime of the Pwnagotchi
-
-        :param: hh: Hours
-        :param: mm: Minutes
-        :param: ss: Seconds
-        :return: If the command was sent successfully
-        """
-        # Make sure all values are less than 100 and greater than 0
-        if not (0 <= hh < 100 and 0 <= mm < 100 and 0 <= ss < 100):
-            return False
-
-        # A stands for adjusted
-        hhA = str(hh).zfill(2)
-        mmA = str(mm).zfill(2)
-        ssA = str(ss).zfill(2)
-
-        data = self._str_to_bytes("{}:{}:{}".format(hhA, mmA, ssA))
-        return self._send_data(PwnZeroParam.UPTIME.value, data)
-
-    def set_friend(self) -> bool:
-        """
-        Friend is currently not supported
-
-        :return: False
-        """
-        return False
-
-    def set_mode(self, mode: PwnMode) -> bool:
-        """
-        Set the mode on the Pwnagotchi
-
-        :param: mode: Mode to set
-        :return: If the command was sent successfully
-        """
-        return self._send_data(PwnZeroParam.MODE.value, [mode.value])
-
-    def set_handshakes(self, handshakesCurrent: int, handshakesTotal: int) -> bool:
-        """
-        Set the number of handshakes on the Pwnagotchi
-
-        :param: handshakesCurrent: Number of handshakes this session
-        :param: handshakesTotal: Number of handshakes in the lifetime of unit
-        :return: If the command was sent successfully
-        """
-        data = self._str_to_bytes("{} ({})".format(handshakesCurrent, handshakesTotal))
-        return self._send_data(PwnZeroParam.HANDSHAKES.value, data)
-
-    def set_message(self, message: str) -> bool:
-        """
-        Sets the displayed message on the Pwnagotchi
-
-        :param: message: Message to set
-        :return: If the command was sent successfully
-        """
-        data = self._str_to_bytes(message)
-        return self._send_data(PwnZeroParam.MESSAGE.value, data)
-
-    def on_ui_setup(self, ui):
-        pass
-
-    def on_ui_update(self, ui):
-        # Message
-        self.set_message(ui.get('status'))
-
-        # Mode
-        modeEnum = None
-        if ui.get('mode') == 'AI':
-            modeEnum = PwnMode.AI
-        elif ui.get('mode') == 'MANU':
-            modeEnum = PwnMode.MANU
-        elif ui.get('mode') == 'AUTO':
-            modeEnum = PwnMode.AUTO
-        self.set_mode(modeEnum)
-
-        # Channel
-        channelInt = 0
-        channel = ui.get('channel')
-        if channel == '*':
-            channelInt = 0
-        else:
-            channelInt = int(channel)
-        self.set_channel(channelInt)
-
-        # Uptime
-        uptime = ui.get('uptime')
-        uptimeSplit = uptime.split(':')
-        self.set_uptime(int(uptimeSplit[0]), int(uptimeSplit[1]), int(uptimeSplit[2]))
-
-        # APS
-        aps = ui.get('aps')
-
-        # name
-        self.set_name(ui.get('name').replace(">", ""))
-
-        # Face
         face = ui.get('face')
 
         faceEnum = None
@@ -372,18 +230,174 @@ class PwnZero(plugins.Plugin):
         elif face == faces.UPLOAD2:
             faceEnum = PwnFace.UPLOAD2
 
-        self.set_face(faceEnum)
+        return self._send_bytes(FlipperCommand.UI_FACE.value, [face.value])
 
-        # Handshakes
+    def set_name(self, ui) -> bool:
+        """
+        Set the name of the Pwnagotchi
+
+        :return: If the command was sent successfully
+        """
+        name = ui.get('name').replace(">", "")
+        return self._send_string(FlipperCommand.UI_NAME.value, name)
+
+    def set_channel(self, ui) -> bool:
+        """
+        Set the channel of the Pwnagotchi
+
+        :return: If the command was sent successfully
+        """
+
+        channel = ui.get('channel')
+        return self._send_string(FlipperCommand.UI_CHANNEL.value, channel)
+
+    def set_aps(self, ui) -> bool:
+        """
+        Set the APs of the Pwnagotchi
+
+        :return: If the command was sent successfully
+        """
+
+        #TODO fix ap handling
+        aps = ui.get('aps')
+        logging.info(f"pwnzero aps = {aps}")
+        #:param: apsCurrent: Number of APS this session
+        #:param: apsTotal: Number of APS in unit lifetime
+
+        # return self._send_string(FlipperCommand.UI_APS.value, "{} ({})".format(apsCurrent, apsTotal))
+
+        return True
+
+    def set_uptime(self, ui) -> bool:
+        """
+        Sets the uptime ui element of the Pwnagotchi on the flipper ui
+
+        :return: If the command was sent successfully
+        """
+
+        uptime = ui.get('uptime')
+        uptimeSplit = uptime.split(':')
+
+        hh = int(uptimeSplit[0])
+        mm = int(uptimeSplit[1])
+        ss = int(uptimeSplit[2])
+
+        # Make sure all values are less than 100 and greater than 0
+        if not (0 <= hh < 100 and 0 <= mm < 100 and 0 <= ss < 100):
+            return False
+
+        # A stands for adjusted
+        hhA = str(hh).zfill(2)
+        mmA = str(mm).zfill(2)
+        ssA = str(ss).zfill(2)
+
+        return self._send_string(FlipperCommand.UI_UPTIME.value, "{}:{}:{}".format(hhA, mmA, ssA))
+
+    def set_friend(self) -> bool:
+        """
+        Friend is currently not supported
+
+        :return: False
+        """
+        return True
+
+    def set_mode(self, ui) -> bool:
+        """
+        Set the mode ui element of the Pwnagotchi on the flipper ui
+
+        :return: If the command was sent successfully
+        """
+        mode = None
+        if ui.get('mode') == 'AI':
+            mode = PwnMode.AI
+        elif ui.get('mode') == 'MANU':
+            mode = PwnMode.MANU
+        elif ui.get('mode') == 'AUTO':
+            mode = PwnMode.AUTO
+
+        return self._send_bytes(FlipperCommand.UI_MODE.value, [mode.value])
+
+    def set_handshakes(self, ui) -> bool:
+        """
+        Set the number of handshakes ui element of the Pwnagotchi on the flipper ui
+
+        :param: handshakesCurrent: Number of handshakes this session
+        :param: handshakesTotal: Number of handshakes in the lifetime of unit
+        :return: If the command was sent successfully
+        """
+
+        #TODO fix handshakes
         handshakes = ui.get('shakes')
+        logging.info(f"pwnzero handshakes = {handshakes}")
 
-        shakesCurr = handshakes.split(' ')[0]
-        shakesTotal = handshakes.split(' ')[1].replace(')', '').replace('(', '')
+        # shakesCurr = handshakes.split(' ')[0]
+        # shakesTotal = handshakes.split(' ')[1].replace(')', '').replace('(', '')
+
+        # return self._send_string(FlipperCommand.UI_HANDSHAKES.value, "{} ({})".format(handshakesCurrent, handshakesTotal))
+
+        return True
+
+    def set_status(self, ui) -> bool:
+        """
+        Sets the displayed status ui element of the Pwnagotchi on the flipper ui
+
+        :param: status: Status to set
+        :return: If the command was sent successfully
+        """
+        status = ui.get('status')
+        #TODO reformat to fix flipper screen size restrictions first?
+        return self._send_string(FlipperCommand.UI_STATUS.value, status)
+
+
+class PwnZero(plugins.Plugin):
+    __author__ = "github.com/Matt-London, eva@evaemmerich.com"
+    __version__ = "2.0.0"
+    __license__ = "MIT"
+    __description__ = "Plugin to the integrate Pwnagotchi into the Flipper Zero"
+
+
+    def __init__(self):
+        self._flipper = Flipper()
+        # when running is True, we should continue looking for a flipper to chat with
+        # when false, we should shut down
+        self.running = False
+        self.connected = False
+
+
+    def on_loaded(self):
+        self._flipper.connect()
+
+        #TODO tell the flipper we are ready, ensure it responds properly
+        # try to complete a connection
+        # while self.running:
+        #     time.sleep(1)
+
+            # TODO
+
+            # send hello
+
+            # wait for reply
+            # if no reply, wait and send hello again
+
+            # if reply, set connected=True and move to waiting for message loop
+
+    def on_unload(self):
+        self.connected = False
+        self.running = False
+
+        self._flipper.disconnect()
+
+
+    def on_ui_setup(self, ui):
+        pass
+
+    def on_ui_update(self, ui):
+        self._flipper.update_ui(ui)
 
     def _receive_command(self):
         pass
 
-
     def cmd_reboot(self):
         # mode = 'MANU' if agent.mode == 'manual' else 'AUTO'
         # pwnagotchi.reboot(mode=mode)
+        pass
