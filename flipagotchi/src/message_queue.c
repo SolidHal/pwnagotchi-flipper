@@ -25,7 +25,7 @@ void message_queue_free(MessageQueue* queue) {
 
 bool message_queue_has_message(MessageQueue* queue) {
     // Make sure readPtr is at the beginning of a message
-    if (*(queue->readPtr) != PWNAGOTCHI_PROTOCOL_START) {
+    if (*(queue->readPtr) != PACKET_START) {
         FURI_LOG_I("PWN", "not at start");
         return false;
     }
@@ -43,7 +43,7 @@ bool message_queue_has_message(MessageQueue* queue) {
         }
 
         // Otherwise see if we're at an end byte
-        if (*cursor == PWNAGOTCHI_PROTOCOL_END) {
+        if (*cursor == PACKET_END) {
             return true;
         }
         else if (*cursor == 0x00) {
@@ -83,8 +83,8 @@ bool message_queue_validate(MessageQueue* queue) {
             continue;
         }
 
-        if (!(queue->messageQueue[ii] == PWNAGOTCHI_PROTOCOL_START &&
-            queue->messageQueue[ii + PWNAGOTCHI_PROTOCOL_BYTE_LEN - 1] == PWNAGOTCHI_PROTOCOL_END)) {
+        if (!(queue->messageQueue[ii] == PACKET_START &&
+            queue->messageQueue[ii + PWNAGOTCHI_PROTOCOL_BYTE_LEN - 1] == PACKET_END)) {
                 // This means it failed so we should wipe and breka
                 message_queue_wipe(queue);
                 return false;
@@ -103,7 +103,7 @@ bool message_queue_pop_message(MessageQueue* queue, PwnCommand* dest) {
 
     FURI_LOG_I("PWN", "grabbing the message!");
     // Otherwise let's grab the message! Currently readPtr is pointing at STX
-    dest->parameterCode = *(queue->readPtr + 1);
+    dest->code = *(queue->readPtr + 1);
 
     // Wipe current arguments to hold 0's
     memset(dest->arguments, 0, PWNAGOTCHI_PROTOCOL_ARGS_MAX);
@@ -119,7 +119,7 @@ bool message_queue_pop_message(MessageQueue* queue, PwnCommand* dest) {
             bytePtr = queue->messageQueue;
         }
 
-        if (*bytePtr == PWNAGOTCHI_PROTOCOL_END) {
+        if (*bytePtr == PACKET_END) {
             break;
         }
 

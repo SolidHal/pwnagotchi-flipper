@@ -10,7 +10,6 @@
 
 #include "../include/pwnagotchi.h"
 #include "../include/protocol.h"
-#include "../include/constants.h"
 #include "../include/message_queue.h"
 
 #define LINES_ON_SCREEN 6
@@ -56,41 +55,28 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
     if (message_queue_has_message(model->queue)) {
         PwnCommand cmd;
         message_queue_pop_message(model->queue, &cmd);
-        FURI_LOG_I("PWN", "Has message (code: %02X), processing...", cmd.parameterCode);
+        FURI_LOG_I("PWN", "Has message (code: %02X), processing...", cmd.code);
 
         // See what the cmd wants
-        switch (cmd.parameterCode) {
+        switch (cmd.code) {
 
             // Process SYN
-            case 0x16:
-            {
-
+            case CMD_SYN: {
               // reply with an ACK, aka 0x06
-              uint8_t ack_msg[] = {PWNAGOTCHI_PROTOCOL_START, 0x06, PWNAGOTCHI_PROTOCOL_END};
+              uint8_t ack_msg[] = {PACKET_START, CMD_ACK, PACKET_END};
               FURI_LOG_I("PWN", "SYN received, replying with ACK: %02X %02X %02X",ack_msg[0], ack_msg[1], ack_msg[2]);
               furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, ack_msg, sizeof(ack_msg));
-                break;
-
-
+              break;
             }
 
             // Process Face
-            case 0x04:
-            {
-                // Adding 4 to account for the offset that is required above 0x03
-                int face = cmd.arguments[0] - 4;
-
-                if (face < 0) {
-                    face = 0;
-                }
-
-                model->pwn->face = cmd.arguments[0] - 4;
-
+            case FLIPPER_CMD_UI_FACE: {
+                model->pwn->face = cmd.arguments[0];
                 break;
             }
+
             // Process Name
-            case 0x05:
-            {
+            case FLIPPER_CMD_UI_NAME: {
                 // Write over hostname with nothing
                 strncpy(model->pwn->hostname, "", PWNAGOTCHI_MAX_HOSTNAME_LEN);
 
@@ -104,9 +90,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 }
                 break;
             }
+
             // Process channel
-            case 0x06:
-            {
+            case FLIPPER_CMD_UI_CHANNEL: {
                 // Write over channel with nothing
                 strncpy(model->pwn->channel, "", PWNAGOTCHI_MAX_CHANNEL_LEN);
 
@@ -120,9 +106,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 }
                 break;
             }
+
             // Process APS (Access Points)
-            case 0x07:
-            {
+            case FLIPPER_CMD_UI_APS: {
                 // Write over APS with nothing
                 strncpy(model->pwn->apStat, "", PWNAGOTCHI_MAX_APS_LEN);
 
@@ -135,9 +121,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 }
                 break;
             }
+
             // Process uptime
-            case 0x08:
-            {
+            case FLIPPER_CMD_UI_UPTIME: {
                 // Write over uptime with nothing
                 strncpy(model->pwn->uptime, "", PWNAGOTCHI_MAX_UPTIME_LEN);
 
@@ -150,15 +136,15 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 }
                 break;
             }
+
             // Process friend
-            case 0x09:
-            {
+            case FLIPPER_CMD_UI_FRIEND: {
                 // Friend not implemented yet
                 break;
             }
+
             // Process mode
-            case 0x0a:
-            {
+            case FLIPPER_CMD_UI_MODE: {
                 enum PwnagotchiMode mode;
 
                 switch (cmd.arguments[0]) {
@@ -179,9 +165,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
                 break;
             }
+
             // Process Handshakes
-            case 0x0b:
-            {
+            case FLIPPER_CMD_UI_HANDSHAKES: {
                 // Write over handshakes with nothing
                 strncpy(model->pwn->handshakes, "", PWNAGOTCHI_MAX_HANDSHAKES_LEN);
 
@@ -194,18 +180,18 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 }
                 break;
             }
-            // Process message
-            case 0x0c:
-            {
-                // Write over the message with nothing
-                strncpy(model->pwn->message, "", PWNAGOTCHI_MAX_MESSAGE_LEN);
 
-                for (size_t i = 0; i < PWNAGOTCHI_MAX_MESSAGE_LEN; i++) {
+            // Process status
+            case FLIPPER_CMD_UI_STATUS: {
+                // Write over the status with nothing
+                strncpy(model->pwn->status, "", PWNAGOTCHI_MAX_STATUS_LEN);
+
+                for (size_t i = 0; i < PWNAGOTCHI_MAX_STATUS_LEN; i++) {
                     // Break if we hit the end of the name
                     if (cmd.arguments[i] == 0x00) {
                         break;
                     }
-                    model->pwn->message[i] = cmd.arguments[i];
+                    model->pwn->status[i] = cmd.arguments[i];
                 }
                 break;
             }

@@ -19,7 +19,7 @@ class Packet(Enum):
 class FlipperCommand(Enum):
     """
     Flipper Zero Commands
-    The values are the bytes that are being sent to the Flipper Zero
+    These commands can be sent from the pwnagotchi to the flipper
     """
     # Control Values
     SYN   = 0x16
@@ -39,6 +39,7 @@ class FlipperCommand(Enum):
 
 class PwnCommand(Enum):
     """
+    Pwnagotchi commands
     These commands can be sent from the Flipper to the pwnagotchi
     """
     # Control Values

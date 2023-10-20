@@ -23,7 +23,7 @@ Pwnagotchi* pwnagotchi_alloc() {
     strncpy(pwn->hostname, "pwn", 4);
     strncpy(pwn->handshakes, "0 (0)", 6);
     strncpy(pwn->uptime, "00:00:00", 9);
-    strncpy(pwn->message, "Hack the planet!", 17);
+    strncpy(pwn->status, "Hack the planet!", 17);
     pwn->mode = PwnMode_Manual;
 
     return pwn;
@@ -202,19 +202,19 @@ void pwnagotchi_draw_mode(Pwnagotchi* pwn, Canvas* canvas) {
 
 }
 
-void pwnagotchi_draw_message(Pwnagotchi* pwn, Canvas* canvas) {
+void pwnagotchi_draw_status(Pwnagotchi* pwn, Canvas* canvas) {
     canvas_set_font(canvas, FontSecondary);
     int fontHeight = canvas_current_font_height(canvas);
 
     // Apparently W is the widest character (USING a for a more average approach)
     size_t charLength = canvas_string_width(canvas, "a");
 
-    size_t horizSpace = FLIPPER_SCREEN_WIDTH - PWNAGOTCHI_MESSAGE_J;
+    size_t horizSpace = FLIPPER_SCREEN_WIDTH - PWNAGOTCHI_STATUS_J;
     size_t charSpaces = floor(((double) horizSpace) / charLength);
-    size_t messagePixLen = canvas_string_width(canvas, pwn->message);
-    size_t maxLines = floor((PWNAGOTCHI_MESSAGE_I - PWNAGOTCHI_LINE2_END_I) / ((double) fontHeight));
+    size_t statusPixLen = canvas_string_width(canvas, pwn->status);
+    size_t maxLines = floor((PWNAGOTCHI_STATUS_I - PWNAGOTCHI_LINE2_END_I) / ((double) fontHeight));
 
-    size_t requiredLines = ceil(((double) messagePixLen) / horizSpace);
+    size_t requiredLines = ceil(((double) statusPixLen) / horizSpace);
 
     size_t charIndex = 0;
     for (size_t i = 0; i < requiredLines && i < maxLines - 1; i++) {
@@ -223,7 +223,7 @@ void pwnagotchi_draw_message(Pwnagotchi* pwn, Canvas* canvas) {
         char* line = malloc(sizeof(char) * allocSize);
 
         // Copy the allotted characters into line
-        memcpy(line, (pwn->message + charIndex), allocSize);
+        memcpy(line, (pwn->status + charIndex), allocSize);
 
         // Now loop backwards and cut it off at a space if we end with a letter
         size_t backspaceCount = 0;
@@ -241,7 +241,7 @@ void pwnagotchi_draw_message(Pwnagotchi* pwn, Canvas* canvas) {
         // Lets make sure if backspaceCount is too large that we cut the word instead of drawing off the screen
         if (backspaceCount >= charSpaces) {backspaceCount = 0;}
 
-        canvas_draw_str(canvas, PWNAGOTCHI_MESSAGE_J, PWNAGOTCHI_MESSAGE_I + (i * fontHeight), line);
+        canvas_draw_str(canvas, PWNAGOTCHI_STATUS_J, PWNAGOTCHI_STATUS_I + (i * fontHeight), line);
 
         charIndex += (charSpaces - backspaceCount + 1);
         free(line);
@@ -259,7 +259,7 @@ void pwnagotchi_draw_all(Pwnagotchi* pwn, Canvas* canvas) {
     pwnagotchi_draw_friend(pwn, canvas);
     pwnagotchi_draw_mode(pwn, canvas);
     pwnagotchi_draw_handshakes(pwn, canvas);
-    pwnagotchi_draw_message(pwn, canvas);
+    pwnagotchi_draw_status(pwn, canvas);
 
 }
 

@@ -3,7 +3,7 @@
 #include <furi.h>
 
 #include "protocol.h"
-#include "constants.h"
+#include "pwnagotchi.h"
 
 /**
  * Struct to contain and operate on given data as per the protocol specification

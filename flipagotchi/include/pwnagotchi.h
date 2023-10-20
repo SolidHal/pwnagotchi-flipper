@@ -3,8 +3,44 @@
 #include <furi.h>
 #include <gui/canvas_i.h>
 #include <stdbool.h>
+#include <furi_hal_uart.h>
 
-#include "constants.h"
+/// Defines the channel that the pwnagotchi uses
+#define PWNAGOTCHI_UART_CHANNEL FuriHalUartIdUSART1
+
+/// Defines the baudrate that the pwnagotchi will use
+#define PWNAGOTCHI_UART_BAUD 115200
+
+/// Max length of channel data at top left
+#define PWNAGOTCHI_MAX_CHANNEL_LEN 4
+
+/// Max length of APS captured at top left
+#define PWNAGOTCHI_MAX_APS_LEN 11
+
+/// Max length for uptime
+#define PWNAGOTCHI_MAX_UPTIME_LEN 11
+
+/// Maximum length of pwnagotchi hostname
+#define PWNAGOTCHI_MAX_HOSTNAME_LEN 11
+
+/// Maximum length of pwnagotchi message
+#define PWNAGOTCHI_MAX_STATUS_LEN 101
+
+/// Maximum length of handshakes info at the bottom
+#define PWNAGOTCHI_MAX_HANDSHAKES_LEN 21
+
+/// Maximum length of a pwnagotchi SSID info displayed at the bottom
+#define PWNAGOTCHI_MAX_SSID_LEN 26
+
+/// Maximum length for pwnagotchi friend name and stats
+#define PWNAGOTCHI_MAX_FRIEND_STAT_LEN 21
+
+/// Height of flipper screen
+#define FLIPPER_SCREEN_HEIGHT 64
+
+/// Width of flipper screen
+#define FLIPPER_SCREEN_WIDTH 128
+
 
 #define PWNAGOTCHI_HEIGHT FLIPPER_SCREEN_HEIGHT
 #define PWNAGOTCHI_WIDTH FLIPPER_SCREEN_WIDTH
@@ -38,8 +74,8 @@
 #define PWNAGOTCHI_MODE_AUTO_J      105
 #define PWNAGOTCHI_MODE_MANU_I      63
 #define PWNAGOTCHI_MODE_MANU_J      103
-#define PWNAGOTCHI_MESSAGE_I        17
-#define PWNAGOTCHI_MESSAGE_J        60
+#define PWNAGOTCHI_STATUS_I        17
+#define PWNAGOTCHI_STATUS_J        60
 
 #define PWNAGOTCHI_FONT             FontSecondary
 
@@ -48,7 +84,7 @@
  * Enum to represent possible faces to save them locally rather than transmit every time
  */
 enum PwnagotchiFace {
-    NoFace = 0,
+    NoFace = 4, // 0, 1, 2, and 3 are reserved values
     DefaultFace,
     Look_r,
     Look_l,
@@ -108,9 +144,9 @@ enum PwnagotchiFace {
  * Enum for current mode of the pwnagotchi
  */
 enum PwnagotchiMode {
+    PwnMode_Manual,
     PwnMode_Auto,
-    PwnMode_Ai,
-    PwnMode_Manual
+    PwnMode_Ai
 };
 
 typedef struct {
@@ -125,8 +161,8 @@ typedef struct {
     char uptime[PWNAGOTCHI_MAX_UPTIME_LEN];
     /// Hostname of the unit
     char hostname[PWNAGOTCHI_MAX_HOSTNAME_LEN];
-    /// Message that is displayed
-    char message[PWNAGOTCHI_MAX_MESSAGE_LEN];
+    /// Status that is displayed
+    char status[PWNAGOTCHI_MAX_STATUS_LEN];
     /// LAST SSID and other handshake information for the bottom
     char handshakes[PWNAGOTCHI_MAX_SSID_LEN];
     /// Current mode the pwnagotchi is in
@@ -233,12 +269,12 @@ void pwnagotchi_draw_mode(Pwnagotchi* pwn, Canvas* canvas);
 void pwnagotchi_draw_handshakes(Pwnagotchi* pwn, Canvas* canvas);
 
 /**
- * Draw the message that the pwnagotchi is showing on the screen
+ * Draw the status that the pwnagotchi is showing on the screen
  * 
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_message(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_status(Pwnagotchi* pwn, Canvas* canvas);
 
 /**
  * Runs all drawing functions to update the screen completely
