@@ -26,6 +26,7 @@ void message_queue_free(MessageQueue* queue) {
 bool message_queue_has_message(MessageQueue* queue) {
     // Make sure readPtr is at the beginning of a message
     if (*(queue->readPtr) != PWNAGOTCHI_PROTOCOL_START) {
+        FURI_LOG_I("PWN", "not at start");
         return false;
     }
 
@@ -46,6 +47,7 @@ bool message_queue_has_message(MessageQueue* queue) {
             return true;
         }
         else if (*cursor == 0x00) {
+            FURI_LOG_I("PWN", "cursor 0x00");
             return false;
         }
     }
@@ -94,10 +96,12 @@ bool message_queue_validate(MessageQueue* queue) {
 }
 
 bool message_queue_pop_message(MessageQueue* queue, PwnCommand* dest) {
+    FURI_LOG_I("PWN", "trying to pop message");
     if (!message_queue_has_message(queue)) {
         return false;
     }
 
+    FURI_LOG_I("PWN", "grabbing the message!");
     // Otherwise let's grab the message! Currently readPtr is pointing at STX
     dest->parameterCode = *(queue->readPtr + 1);
 

@@ -56,10 +56,24 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
     if (message_queue_has_message(model->queue)) {
         PwnCommand cmd;
         message_queue_pop_message(model->queue, &cmd);
-        FURI_LOG_D("PWN", "Has message (code: %d), processing...", cmd.parameterCode);
+        FURI_LOG_I("PWN", "Has message (code: %02X), processing...", cmd.parameterCode);
 
         // See what the cmd wants
         switch (cmd.parameterCode) {
+
+            // Process SYN
+            case 0x16:
+            {
+
+              // reply with an ACK, aka 0x06
+              uint8_t ack_msg[] = {PWNAGOTCHI_PROTOCOL_START, 0x06, PWNAGOTCHI_PROTOCOL_END};
+              FURI_LOG_I("PWN", "SYN received, replying with ACK: %02X %02X %02X",ack_msg[0], ack_msg[1], ack_msg[2]);
+              furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, ack_msg, sizeof(ack_msg));
+                break;
+
+
+            }
+
             // Process Face
             case 0x04:
             {
@@ -221,6 +235,7 @@ static uint32_t flipagotchi_exit(void* context) {
 }
 
 static void flipagotchi_on_irq_cb(UartIrqEvent ev, uint8_t data, void* context) {
+    FURI_LOG_I("PWN", "uart irq");
     furi_assert(context);
     FlipagotchiApp* app = context;
 
@@ -267,13 +282,14 @@ static int32_t flipagotchi_worker(void* context) {
             notification_message(app->notification, &sequence_notification);
             // with_view_model(
                 // app->view, PwnDumpModel * model, { UNUSED(model); }, true);
-            
+
         }
     }
     return 0;
 }
 
 static FlipagotchiApp* flipagotchi_app_alloc() {
+    FURI_LOG_I("PWN", "starting alloc");
     FlipagotchiApp* app = malloc(sizeof(FlipagotchiApp));
 
     app->rx_stream = furi_stream_buffer_alloc(2048, 1);
@@ -306,6 +322,8 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     view_dispatcher_switch_to_view(app->view_dispatcher, 0);
 
     // Enable uart listener
+    // MUST DISABLE CONSOLE OR ELSE IT DIRTIES OUR UART!
+    // this is annoying for debugging :(
     furi_hal_console_disable();
     furi_hal_uart_set_br(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
     furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, flipagotchi_on_irq_cb, app);
@@ -317,10 +335,14 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     furi_thread_set_callback(app->worker_thread, flipagotchi_worker);
     furi_thread_start(app->worker_thread);
 
+
+    FURI_LOG_I("PWN", "ALLC'd");
+
     return app;
 }
 
 static void flipagotchi_app_free(FlipagotchiApp* app) {
+  FURI_LOG_I("PWN", "freeing!");
     furi_assert(app);
 
     furi_thread_flags_set(furi_thread_get_id(app->worker_thread), WorkerEventStop);
