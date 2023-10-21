@@ -6,7 +6,10 @@
 #include <furi_hal_uart.h>
 
 /// Defines the channel that the pwnagotchi uses
-#define PWNAGOTCHI_UART_CHANNEL FuriHalUartIdUSART1
+// TX pin 15, RX pin 16
+#define PWNAGOTCHI_UART_CHANNEL FuriHalUartIdLPUART1
+// TX pin 13, RX pin 14
+/* #define PWNAGOTCHI_UART_CHANNEL FuriHalUartIdUSART1 */
 
 /// Defines the baudrate that the pwnagotchi will use
 #define PWNAGOTCHI_UART_BAUD 115200

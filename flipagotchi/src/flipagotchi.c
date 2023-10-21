@@ -348,9 +348,14 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     view_dispatcher_switch_to_view(app->view_dispatcher, 0);
 
     // Enable uart listener
-    // MUST DISABLE CONSOLE OR ELSE IT DIRTIES OUR UART!
-    // this is annoying for debugging :(
-    furi_hal_console_disable();
+    if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1) {
+      // when using the main uart, aka the ones labeled on the flippper, we
+      // MUST DISABLE CONSOLE OR ELSE IT DIRTIES OUR UART!
+      // this is annoying for debugging :(
+      furi_hal_console_disable();
+    } else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1) {
+      furi_hal_uart_init(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
+    }
     furi_hal_uart_set_br(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
     furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, flipagotchi_on_irq_cb, app);
 
@@ -375,7 +380,15 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
     furi_thread_join(app->worker_thread);
     furi_thread_free(app->worker_thread);
 
-    furi_hal_console_enable();
+
+    furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, NULL, NULL);
+    if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1){
+      furi_hal_console_enable();
+    }
+    else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1){
+      furi_hal_uart_deinit(PWNAGOTCHI_UART_CHANNEL);
+    }
+
 
     // Free views
     view_dispatcher_remove_view(app->view_dispatcher, 0);
