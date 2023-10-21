@@ -37,6 +37,7 @@
 #define PWN_CMD_SHUTDOWN    0x05
 #define PWN_CMD_MODE        0x07
 #define PWN_CMD_UI_REFRESH  0x08
+#define PWN_CMD_CLOCK_SET   0x09
 
 
 typedef struct {

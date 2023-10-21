@@ -63,6 +63,12 @@ static void flipagotchi_send_nak(const uint8_t received_cmd) {
   furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, nak_msg, sizeof(nak_msg));
 }
 
+static void flipagotchi_send_ui_refresh() {
+  uint8_t msg[] = {PACKET_START, PWN_CMD_UI_REFRESH, PACKET_END};
+  FURI_LOG_I("PWN", "sending ui refresh cmd");
+  furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, msg, sizeof(msg));
+}
+
 static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
     if (message_queue_has_message(model->queue)) {
         PwnCommand cmd;
@@ -71,6 +77,14 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
         // See what the cmd wants
         switch (cmd.code) {
+
+            // Process ACK
+            case CMD_ACK: {
+              FURI_LOG_I("PWN", "received ACK");
+              //TODO NOT IMPLEMENTED
+              //TODO, add logic to ensure every message we send receives an ACK
+              break;
+            }
 
             // Process SYN
             case CMD_SYN: {
@@ -278,6 +292,15 @@ static void flipagotchi_push_to_list(PwnDumpModel* model, const char data) {
 static int32_t flipagotchi_worker(void* context) {
     furi_assert(context);
     FlipagotchiApp* app = context;
+
+    // either we start first, or the pwnagotchi does
+    // the pwn does, then we won't have up to date ui elements
+    // send a ui refresh.
+    // if we get a reply, pwn started first
+    // if we don't get a reply, just move on. we probably started first
+    // pwn will update us when it gets going
+    FURI_LOG_I("PWN", "sending ui refresh");
+    flipagotchi_send_ui_refresh();
 
     while(true) {
         bool update = false;

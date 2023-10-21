@@ -53,6 +53,7 @@ class PwnCommand(Enum):
     SHUTDOWN       = 0x05
     MODE           = 0x07
     UI_REFRESH     = 0x08 # request a ui refresh from the pwnagotchi
+    CLOCK_SET      = 0x09 # flipper has a hardware clock, pwnagotchi does not. lets leverage that
 
     #TODO add ability to send commands to bettercap
 
@@ -183,6 +184,10 @@ class Flipper():
         if not self._serial_conn.write(packet) == len(packet):
             raise SendLengthIncorrect()
 
+        # if we are sending, we don't expect an ACK back
+        if cmd == FlipperCommand.ACK.value or cmd == FlipperCommand.NAK.value:
+            return
+
         # expect an ACK reply
         rec = self.receive_bytes()
         if rec != [PwnCommand.ACK.value]:
@@ -253,6 +258,20 @@ class Flipper():
         :return: If syn ack was successful
         """
         self._send_bytes(FlipperCommand.SYN.value, [])
+
+
+    def send_ack(self):
+        """
+        Sends a ack packet to the flipper
+        """
+        self._send_bytes(FlipperCommand.ACK.value, [])
+
+
+    def send_nak(self):
+        """
+        Sends a nak packet to the flipper
+        """
+        self._send_bytes(FlipperCommand.NAK.value, [])
 
     def update_ui(self, current_ui, new_ui) -> bool:
         """
@@ -536,7 +555,7 @@ class PwnZero(plugins.Plugin):
 
                     # receive commands from flipper
                     try:
-                        rec = self._flipper.receive_bytes()
+                        msg = self._flipper.receive_bytes()
                     except PwnZeroSerialException as e:
                         logging.info(f"[PwnZero] receive exception in main loop: {type(e).__name__}:{e.args}")
                         self.error_count += 1
@@ -548,8 +567,14 @@ class PwnZero(plugins.Plugin):
                         pass
                     else:
                         # we have some command to handle!
-                        logging.info(f"[PwnZero] received flipper message: {rec}")
-                        # TODO do some validation to see if its something we can actually handle
+                        logging.info(f"[PwnZero] received flipper message: {msg}")
+
+                        if msg[0] == PwnCommand.UI_REFRESH.value:
+                            self.current_ui = None
+                            self._flipper.send_ack()
+                        else:
+                            logging.info(f"[PwnZero] received flipper message, but not able to handle command.: {msg}")
+                            self._flipper.send_nak()
 
     def on_unload(self):
         self.connected = False
