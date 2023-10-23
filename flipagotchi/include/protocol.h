@@ -2,6 +2,10 @@
 
 #include <furi.h>
 
+/// Smallest number of bytes a full PwnCommand can be
+/// PACKET_START COMMAND_CODE PACKET_END
+#define PWNAGOTCHI_PROTOCOL_MIN_COMMAND_SIZE 3
+
 /// Number of bytes that can be stored in the queue at one time
 #define PWNAGOTCHI_PROTOCOL_QUEUE_SIZE 5000
 

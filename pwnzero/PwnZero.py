@@ -495,6 +495,7 @@ class Flipper():
             return True
         logging.info(f"[PwnZero] ui differs, setting status")
         status = new_ui.get('status')
+        logging.info(f"[PwnZero] status: {status}")
         #TODO reformat to fix flipper screen size restrictions first?
         return self._send_string(FlipperCommand.UI_STATUS.value, status)
 

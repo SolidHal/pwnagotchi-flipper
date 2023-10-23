@@ -47,7 +47,7 @@ bool message_queue_has_message(MessageQueue* queue) {
             return true;
         }
         else if (*cursor == 0x00) {
-            FURI_LOG_I("PWN", "cursor 0x00");
+            /* FURI_LOG_I("PWN", "cursor 0x00"); */
             return false;
         }
     }

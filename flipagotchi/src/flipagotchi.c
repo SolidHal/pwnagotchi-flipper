@@ -15,6 +15,8 @@
 #define LINES_ON_SCREEN 6
 #define COLUMNS_ON_SCREEN 21
 
+#define RX_BUF_SIZE 2048
+
 typedef struct PwnDumpModel PwnDumpModel;
 
 typedef struct {
@@ -50,6 +52,20 @@ const NotificationSequence sequence_notification = {
     &message_delay_10,
     NULL,
 };
+
+/* static void flipagotchi_enable_power() { */
+/*   uint8_t attempts = 0; */
+/*   while(!furi_hal_power_is_otg_enabled() && attempts++ < 5) { */
+/*     furi_hal_power_enable_otg(); */
+/*     furi_delay_ms(10); */
+/*     } */
+/* } */
+
+/* static void flipagotchi_disable_power() { */
+/*   if(furi_hal_power_is_otg_enabled()) { */
+/*     furi_hal_power_disable_otg(); */
+/*   } */
+/* } */
 
 static void flipagotchi_send_ack(const uint8_t received_cmd) {
   uint8_t ack_msg[] = {PACKET_START, CMD_ACK, PACKET_END};
@@ -237,12 +253,12 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
                 strncpy(model->pwn->status, "", PWNAGOTCHI_MAX_STATUS_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_STATUS_LEN; i++) {
-                    // Break if we hit the end of the name
                     if (cmd.arguments[i] == 0x00) {
                         break;
                     }
                     model->pwn->status[i] = cmd.arguments[i];
                 }
+                FURI_LOG_I("PWN", "rec status: %s", model->pwn->status);
                 break;
             }
             default: {
@@ -275,26 +291,30 @@ static uint32_t flipagotchi_exit(void* context) {
 }
 
 static void flipagotchi_on_irq_cb(UartIrqEvent ev, uint8_t data, void* context) {
-    FURI_LOG_I("PWN", "uart irq");
-    furi_assert(context);
+    // loads the rx_stream with each byte we receive
     FlipagotchiApp* app = context;
 
     if(ev == UartIrqEventRXNE) {
+        // put bytes onto the rx_stream, one by one as they come in
+
+
+        if (data < 65){
+          FURI_LOG_I("PWN", "pushing %02X to queue", data);
+        }
+        else{
+          FURI_LOG_I("PWN", "pushing %c to queue", data);
+        }
+
         furi_stream_buffer_send(app->rx_stream, &data, 1, 0);
         furi_thread_flags_set(furi_thread_get_id(app->worker_thread), WorkerEventRx);
     }
 }
 
-static void flipagotchi_push_to_list(PwnDumpModel* model, const char data) {
-    message_queue_push_byte(model->queue, data);
-}
-
 static int32_t flipagotchi_worker(void* context) {
-    furi_assert(context);
     FlipagotchiApp* app = context;
 
     // either we start first, or the pwnagotchi does
-    // the pwn does, then we won't have up to date ui elements
+    // if the pwn does, then we won't have up to date ui elements
     // send a ui refresh.
     // if we get a reply, pwn started first
     // if we don't get a reply, just move on. we probably started first
@@ -302,6 +322,9 @@ static int32_t flipagotchi_worker(void* context) {
     FURI_LOG_I("PWN", "sending ui refresh");
     flipagotchi_send_ui_refresh();
 
+
+
+    uint8_t rx_buf[RX_BUF_SIZE + 1];
     while(true) {
         bool update = false;
         uint32_t events =
@@ -310,29 +333,28 @@ static int32_t flipagotchi_worker(void* context) {
 
         if(events & WorkerEventStop) break;
         if(events & WorkerEventRx) {
-            size_t length = 0;
-            do {
-                uint8_t data[1];
-                length = furi_stream_buffer_receive(app->rx_stream, data, 1, 0);
-                if(length > 0) {
-                    with_view_model(
-                        app->view,
-                        PwnDumpModel* model,
-                        {
-                            for(size_t i = 0; i < length; i++) {
-                                flipagotchi_push_to_list(model, data[i]);
-                            }
-                            update = flipagotchi_exec_cmd(model);
-                        },
-                        update);
-                }
-            } while(length > 0);
+            size_t length = furi_stream_buffer_receive(app->rx_stream, rx_buf, RX_BUF_SIZE, 0);
+            //TODO move the view updating to another thread
+            if(length > 0) {
+                with_view_model(
+                    app->view,
+                    PwnDumpModel* model,
+                    {
+                        for(size_t i = 0; i < length; i++) {
+                            message_queue_push_byte(model->queue, rx_buf[i]);
+                        }
+                        update = flipagotchi_exec_cmd(model);
+                    },
+                    update);
+            }
 
-            notification_message(app->notification, &sequence_notification);
+         }
+
+            // light up the screen and blink the led
+            /* notification_message(app->notification, &sequence_notification); */
             // with_view_model(
                 // app->view, PwnDumpModel * model, { UNUSED(model); }, true);
 
-        }
     }
     return 0;
 }
@@ -341,7 +363,7 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     FURI_LOG_I("PWN", "starting alloc");
     FlipagotchiApp* app = malloc(sizeof(FlipagotchiApp));
 
-    app->rx_stream = furi_stream_buffer_alloc(2048, 1);
+    app->rx_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
 
     // Gui
     app->gui = furi_record_open(RECORD_GUI);
@@ -383,7 +405,7 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, flipagotchi_on_irq_cb, app);
 
     app->worker_thread = furi_thread_alloc();
-    furi_thread_set_name(app->worker_thread, "UsbUartWorker");
+    furi_thread_set_name(app->worker_thread, "FlipagotchiWorker");
     furi_thread_set_stack_size(app->worker_thread, 1024);
     furi_thread_set_context(app->worker_thread, app);
     furi_thread_set_callback(app->worker_thread, flipagotchi_worker);
@@ -396,14 +418,16 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
 }
 
 static void flipagotchi_app_free(FlipagotchiApp* app) {
-  FURI_LOG_I("PWN", "freeing!");
+    FURI_LOG_I("PWN", "freeing!");
     furi_assert(app);
 
+
+    // free worker
     furi_thread_flags_set(furi_thread_get_id(app->worker_thread), WorkerEventStop);
     furi_thread_join(app->worker_thread);
     furi_thread_free(app->worker_thread);
 
-
+    // free uart
     furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, NULL, NULL);
     if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1){
       furi_hal_console_enable();
@@ -411,7 +435,6 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
     else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1){
       furi_hal_uart_deinit(PWNAGOTCHI_UART_CHANNEL);
     }
-
 
     // Free views
     view_dispatcher_remove_view(app->view_dispatcher, 0);
