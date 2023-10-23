@@ -324,7 +324,6 @@ static int32_t flipagotchi_worker(void* context) {
         if(events & WorkerEventStop) break;
         if(events & WorkerEventRx) {
             size_t length = furi_stream_buffer_receive(app->rx_stream, rx_buf, RX_BUF_SIZE, 0);
-            //TODO move the view updating to another thread
             if(length > 0) {
                 with_view_model(
                     app->view,
