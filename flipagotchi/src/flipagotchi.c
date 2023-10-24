@@ -10,7 +10,7 @@
 
 #include "../include/pwnagotchi.h"
 #include "../include/protocol.h"
-#include "../include/message_queue.h"
+#include "../include/protocol_queue.h"
 
 #define LINES_ON_SCREEN 6
 #define COLUMNS_ON_SCREEN 21
@@ -34,7 +34,7 @@ typedef struct {
 } ListElement;
 
 struct PwnDumpModel {
-    MessageQueue *queue;
+    ProtocolQueue *queue;
 
     Pwnagotchi* pwn;
 };
@@ -87,13 +87,13 @@ static void flipagotchi_send_ui_refresh() {
 }
 
 static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
-    if (message_queue_has_message(model->queue)) {
-        PwnCommand cmd;
-        message_queue_pop_message(model->queue, &cmd);
-        FURI_LOG_I("PWN", "Has message (code: %02X), processing...", cmd.code);
+    if (protocol_queue_has_message(model->queue)) {
+        PwnMessage message;
+        protocol_queue_pop_message(model->queue, &message);
+        FURI_LOG_I("PWN", "Has message (code: %02X), processing...", message.code);
 
-        // See what the cmd wants
-        switch (cmd.code) {
+        // See what the message wants
+        switch (message.code) {
 
             // Process ACK
             case CMD_ACK: {
@@ -105,34 +105,34 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
 
             // Process SYN
             case CMD_SYN: {
-              flipagotchi_send_ack(cmd.code);
+              flipagotchi_send_ack(message.code);
               break;
             }
 
             // Process Face
             case FLIPPER_CMD_UI_FACE: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
-                model->pwn->face = cmd.arguments[0];
+                model->pwn->face = message.arguments[0];
                 break;
             }
 
             // Process Name
             case FLIPPER_CMD_UI_NAME: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Write over hostname with nothing
                 strncpy(model->pwn->hostname, "", PWNAGOTCHI_MAX_HOSTNAME_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_HOSTNAME_LEN; i++) {
                     // Break if we hit the end of the name
-                    if (cmd.arguments[i] == 0x00) {
+                    if (message.arguments[i] == 0x00) {
                         break;
                     }
 
-                    model->pwn->hostname[i] = cmd.arguments[i];
+                    model->pwn->hostname[i] = message.arguments[i];
                 }
                 break;
             }
@@ -140,18 +140,18 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process channel
             case FLIPPER_CMD_UI_CHANNEL: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Write over channel with nothing
                 strncpy(model->pwn->channel, "", PWNAGOTCHI_MAX_CHANNEL_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_CHANNEL_LEN; i++) {
                     // Break if we hit the end of the name
-                    if (cmd.arguments[i] == 0x00) {
+                    if (message.arguments[i] == 0x00) {
                         break;
                     }
 
-                    model->pwn->channel[i] = cmd.arguments[i];
+                    model->pwn->channel[i] = message.arguments[i];
                 }
                 break;
             }
@@ -159,17 +159,17 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process APS (Access Points)
             case FLIPPER_CMD_UI_APS: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Write over APS with nothing
                 strncpy(model->pwn->apStat, "", PWNAGOTCHI_MAX_APS_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_APS_LEN; i++) {
                     // Break if we hit the end of the name
-                    if (cmd.arguments[i] == 0x00) {
+                    if (message.arguments[i] == 0x00) {
                         break;
                     }
-                    model->pwn->apStat[i] = cmd.arguments[i];
+                    model->pwn->apStat[i] = message.arguments[i];
                 }
                 break;
             }
@@ -177,17 +177,17 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process uptime
             case FLIPPER_CMD_UI_UPTIME: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Write over uptime with nothing
                 strncpy(model->pwn->uptime, "", PWNAGOTCHI_MAX_UPTIME_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_UPTIME_LEN; i++) {
                     // Break if we hit the end of the name
-                    if (cmd.arguments[i] == 0x00) {
+                    if (message.arguments[i] == 0x00) {
                         break;
                     }
-                    model->pwn->uptime[i] = cmd.arguments[i];
+                    model->pwn->uptime[i] = message.arguments[i];
                 }
                 break;
             }
@@ -195,7 +195,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process friend
             case FLIPPER_CMD_UI_FRIEND: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Friend not implemented yet
                 break;
@@ -204,11 +204,11 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process mode
             case FLIPPER_CMD_UI_MODE: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 enum PwnagotchiMode mode;
 
-                switch (cmd.arguments[0]) {
+                switch (message.arguments[0]) {
                     case 0x04:
                         mode = PwnMode_Manual;
                         break;
@@ -230,17 +230,17 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process Handshakes
             case FLIPPER_CMD_UI_HANDSHAKES: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Write over handshakes with nothing
                 strncpy(model->pwn->handshakes, "", PWNAGOTCHI_MAX_HANDSHAKES_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_HANDSHAKES_LEN; i++) {
                     // Break if we hit the end of the name
-                    if (cmd.arguments[i] == 0x00) {
+                    if (message.arguments[i] == 0x00) {
                         break;
                     }
-                    model->pwn->handshakes[i] = cmd.arguments[i];
+                    model->pwn->handshakes[i] = message.arguments[i];
                 }
                 break;
             }
@@ -248,16 +248,16 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             // Process status
             case FLIPPER_CMD_UI_STATUS: {
                 // send ack before handling to avoid stalling the pwnagotchi
-                flipagotchi_send_ack(cmd.code);
+                flipagotchi_send_ack(message.code);
 
                 // Write over the status with nothing
                 strncpy(model->pwn->status, "", PWNAGOTCHI_MAX_STATUS_LEN);
 
                 for (size_t i = 0; i < PWNAGOTCHI_MAX_STATUS_LEN; i++) {
-                    if (cmd.arguments[i] == 0x00) {
+                    if (message.arguments[i] == 0x00) {
                         break;
                     }
-                    model->pwn->status[i] = cmd.arguments[i];
+                    model->pwn->status[i] = message.arguments[i];
                 }
                 FURI_LOG_I("PWN", "rec status: %s", model->pwn->status);
                 break;
@@ -265,7 +265,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
             default: {
                 // didn't match any of the known FLIPPER_CMDs
                 // reply with a NAK
-                flipagotchi_send_nak(cmd.code);
+                flipagotchi_send_nak(message.code);
             }
         }
     }
@@ -325,12 +325,15 @@ static int32_t flipagotchi_worker(void* context) {
         if(events & WorkerEventRx) {
             size_t length = furi_stream_buffer_receive(app->rx_stream, rx_buf, RX_BUF_SIZE, 0);
             if(length > 0) {
+              // TODO, pretty sure there is no reason for our queue to live in the view model
+              // lets move it out into the main app
+              // it wouldn't hurt to review the queue and ensure its threadsafe while we are at it...
                 with_view_model(
                     app->view,
                     PwnDumpModel* model,
                     {
                         for(size_t i = 0; i < length; i++) {
-                            message_queue_push_byte(model->queue, rx_buf[i]);
+                            protocol_queue_push_byte(model->queue, rx_buf[i]);
                         }
                         furi_thread_flags_set(furi_thread_get_id(app->cmd_worker_thread), WorkerEventRx);
                         update = false;
@@ -396,7 +399,7 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
         app->view,
         PwnDumpModel * model,
         {
-            model->queue = message_queue_alloc();
+            model->queue = protocol_queue_alloc();
             model->pwn = pwnagotchi_alloc();
         },
         true);
@@ -468,7 +471,7 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
         app->view,
         PwnDumpModel * model,
         {
-            message_queue_free(model->queue);
+            protocol_queue_free(model->queue);
             pwnagotchi_free(model->pwn);
         },
         true);

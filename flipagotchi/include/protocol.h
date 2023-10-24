@@ -2,15 +2,15 @@
 
 #include <furi.h>
 
-/// Smallest number of bytes a full PwnCommand can be
-/// PACKET_START COMMAND_CODE PACKET_END
-#define PWNAGOTCHI_PROTOCOL_MIN_COMMAND_SIZE 3
+/// Number of messages that can be stored in the queue at once
+/// When the message queue fills up, we wrap around to the front
+#define PWNAGOTCHI_PROTOCOL_MESSAGE_QUEUE_SIZE 15
 
-/// Number of bytes that can be stored in the queue at one time
-#define PWNAGOTCHI_PROTOCOL_QUEUE_SIZE 5000
+/// Number of bytes reserved to protocol overhead, 1 for the PACKET_START and 1 for the PACKET_END
+#define PWNAGOTCHI_PROTOCOL_OVERHEAD_SIZE 2
 
-/// Max bytes of argument data
-#define PWNAGOTCHI_PROTOCOL_ARGS_MAX 100
+/// Max number of bytes in a single message, not including the PWNAGOTCHI_PROTOCOL_OVERHEAD_SIZE
+#define PWNAGOTCHI_PROTOCOL_MAX_MESSAGE_SIZE 200
 
 /// Start byte at beginning of transmission
 #define PACKET_START 0x02
@@ -44,10 +44,11 @@
 #define PWN_CMD_CLOCK_SET   0x09
 
 
+
 typedef struct {
     /// Command code to operate on
     uint8_t code;
 
     /// Holds arguments sent folowing command code
-    uint8_t arguments[PWNAGOTCHI_PROTOCOL_ARGS_MAX];
-} PwnCommand;
+    uint8_t arguments[PWNAGOTCHI_PROTOCOL_MAX_MESSAGE_SIZE - 1];
+} PwnMessage;
