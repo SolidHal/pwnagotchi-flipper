@@ -35,9 +35,6 @@
 /// Maximum length of a pwnagotchi SSID info displayed at the bottom
 #define PWNAGOTCHI_MAX_SSID_LEN 26
 
-/// Maximum length for pwnagotchi friend name and stats
-#define PWNAGOTCHI_MAX_FRIEND_STAT_LEN 21
-
 /// Height of flipper screen
 #define FLIPPER_SCREEN_HEIGHT 64
 
@@ -67,10 +64,6 @@
 #define PWNAGOTCHI_LINE2_END_J      127
 #define PWNAGOTCHI_HANDSHAKES_I     63
 #define PWNAGOTCHI_HANDSHAKES_J     0
-#define PWNAGOTCHI_FRIEND_FACE_I    52
-#define PWNAGOTCHI_FRIEND_FACE_J    3
-#define PWNAGOTCHI_FRIEND_STAT_I    52
-#define PWNAGOTCHI_FRIEND_STAT_J    24
 #define PWNAGOTCHI_MODE_AI_I        63
 #define PWNAGOTCHI_MODE_AI_J        121
 #define PWNAGOTCHI_MODE_AUTO_I      63
@@ -170,10 +163,6 @@ typedef struct {
     char handshakes[PWNAGOTCHI_MAX_SSID_LEN];
     /// Current mode the pwnagotchi is in
     enum PwnagotchiMode mode;
-    /// Friend face
-    enum PwnagotchiFace friendFace;
-    /// Name and aps of friend
-    char friendStat[PWNAGOTCHI_MAX_FRIEND_STAT_LEN];
 
 } Pwnagotchi;
 
@@ -246,14 +235,6 @@ void pwnagotchi_draw_uptime(Pwnagotchi* pwn, Canvas* canvas);
  * @param canvas Canvas to draw on
  */
 void pwnagotchi_draw_lines(Pwnagotchi* pwn, Canvas* canvas);
-
-/**
- * Draw friend of pwnagotchi on screen
- * 
- * @param pwn Pwnagotchi to draw
- * @param canvas Canvas to draw on
- */
-void pwnagotchi_draw_friend(Pwnagotchi* pwn, Canvas* canvas);
 
 /**
  * Draw current mode of pwnagotchi

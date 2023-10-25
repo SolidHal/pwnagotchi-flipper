@@ -16,14 +16,13 @@ Pwnagotchi* pwnagotchi_alloc() {
     Pwnagotchi* pwn = malloc(sizeof(Pwnagotchi));
 
     pwn->face = Cool;
-    pwn->friendFace = NoFace;
 
     strncpy(pwn->channel, "*", 2);
     strncpy(pwn->apStat, "0 (0)", 6);
-    strncpy(pwn->hostname, "pwn", 4);
-    strncpy(pwn->handshakes, "0 (0)", 6);
     strncpy(pwn->uptime, "00:00:00", 9);
+    strncpy(pwn->hostname, "pwn", 4);
     strncpy(pwn->status, "Hack the planet!", 17);
+    strncpy(pwn->handshakes, "0 (0)", 6);
     pwn->mode = PwnMode_Manual;
 
     return pwn;
@@ -181,10 +180,6 @@ void pwnagotchi_draw_handshakes(Pwnagotchi* pwn, Canvas* canvas) {
     free(formatShakes);
 }
 
-void pwnagotchi_draw_friend(Pwnagotchi* pwn, Canvas* canvas) {
-    UNUSED(pwn);
-    UNUSED(canvas);
-}
 
 void pwnagotchi_draw_mode(Pwnagotchi* pwn, Canvas* canvas) {
     canvas_set_font(canvas, PWNAGOTCHI_FONT);
@@ -256,7 +251,6 @@ void pwnagotchi_draw_all(Pwnagotchi* pwn, Canvas* canvas) {
     pwnagotchi_draw_aps(pwn, canvas);
     pwnagotchi_draw_uptime(pwn, canvas);
     pwnagotchi_draw_lines(pwn, canvas);
-    pwnagotchi_draw_friend(pwn, canvas);
     pwnagotchi_draw_mode(pwn, canvas);
     pwnagotchi_draw_handshakes(pwn, canvas);
     pwnagotchi_draw_status(pwn, canvas);
