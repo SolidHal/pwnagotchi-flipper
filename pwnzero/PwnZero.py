@@ -201,7 +201,10 @@ class Flipper():
             raise e
 
         try:
-            packet = self._serial_conn.read_until(expected=str(Packet.END.value))
+            # using Packet.END.value by default here does not work, we must use a byte string version
+            # of whatever our end value is
+            # otherwise we just hit the timeout everytime, and communication is super slow
+            packet = self._serial_conn.read_until(expected=Packet.END.value.to_bytes(1,"big"))
         except Exception as e:
             logging.error(f"[PwnZero] failed reading from serial {e}")
             cleanup_and_raise(SerialConnException(e))
