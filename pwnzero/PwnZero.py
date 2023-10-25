@@ -146,7 +146,7 @@ def _ui_diff(current_ui, new_ui, key):
 
 class Flipper():
 
-    def __init__(self, port: str = "/dev/serial0", baud: int = 115200, timeout: float = 0.5):
+    def __init__(self, port: str = "/dev/serial0", baud: int = 115200, timeout: float = 1):
         """
         Construct a Flipper object, this will create the connection to the flipper
 

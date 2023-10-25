@@ -24,7 +24,7 @@ typedef struct {
     NotificationApp* notification;
     ViewDispatcher* view_dispatcher;
     View* view;
-    FuriThread* worker_thread;
+    FuriThread* uart_worker_thread;
     FuriThread* cmd_worker_thread;
     FuriStreamBuffer* rx_stream;
     ProtocolQueue *queue;
@@ -310,12 +310,24 @@ static void flipagotchi_on_irq_cb(UartIrqEvent ev, uint8_t data, void* context) 
         }
 
         furi_stream_buffer_send(app->rx_stream, &data, 1, 0);
-        furi_thread_flags_set(furi_thread_get_id(app->worker_thread), WorkerEventRx);
+        furi_thread_flags_set(furi_thread_get_id(app->uart_worker_thread), WorkerEventRx);
     }
 }
 
-static int32_t flipagotchi_worker(void* context) {
+static int32_t flipagotchi_uart_worker(void* context) {
     FlipagotchiApp* app = context;
+
+    // setup uart
+    if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1) {
+      // when using the main uart, aka the ones labeled on the flippper, we
+      // MUST DISABLE CONSOLE OR ELSE IT DIRTIES OUR UART!
+      // this is annoying for debugging :(
+      furi_hal_console_disable();
+    } else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1) {
+      furi_hal_uart_init(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
+    }
+    furi_hal_uart_set_br(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
+    furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, flipagotchi_on_irq_cb, app);
 
     uint8_t rx_buf[RX_BUF_SIZE + 1];
     while(true) {
@@ -323,9 +335,7 @@ static int32_t flipagotchi_worker(void* context) {
             furi_thread_flags_wait(WORKER_EVENTS_MASK, FuriFlagWaitAny, FuriWaitForever);
         furi_check((events & FuriFlagError) == 0);
 
-        if(events & WorkerEventStop){
-            return 0;
-        }
+        if(events & WorkerEventStop) break;
         if(events & WorkerEventRx) {
             size_t length = furi_stream_buffer_receive(app->rx_stream, rx_buf, RX_BUF_SIZE, 0);
             if(length > 0) {
@@ -338,11 +348,35 @@ static int32_t flipagotchi_worker(void* context) {
             }
         }
     }
+
+
+    FURI_LOG_I("PWN", "free uart");
+    // free uart
+    furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, NULL, NULL);
+    if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1){
+      furi_hal_console_enable();
+    }
+    else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1){
+      furi_hal_uart_deinit(PWNAGOTCHI_UART_CHANNEL);
+    }
+
     return 0;
 }
 
 static int32_t flipagotchi_cmd_worker(void* context){
     FlipagotchiApp* app = context;
+
+    // alloc incoming stream for uart thread
+    app->rx_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
+
+    // uart thread
+    app->uart_worker_thread = furi_thread_alloc();
+    furi_thread_set_name(app->uart_worker_thread, "FlipagotchiWorker");
+    furi_thread_set_stack_size(app->uart_worker_thread, 512);
+    furi_thread_set_context(app->uart_worker_thread, app);
+    furi_thread_set_callback(app->uart_worker_thread, flipagotchi_uart_worker);
+    furi_thread_start(app->uart_worker_thread);
+
 
     while(true) {
         bool update = false;
@@ -350,9 +384,7 @@ static int32_t flipagotchi_cmd_worker(void* context){
             furi_thread_flags_wait(WORKER_EVENTS_MASK, FuriFlagWaitAny, FuriWaitForever);
         furi_check((events & FuriFlagError) == 0);
 
-        if(events & WorkerEventStop) {
-            return 0;
-        }
+        if(events & WorkerEventStop) break;
         if(events & WorkerEventRx) {
             with_view_model(
                     app->view,
@@ -369,14 +401,22 @@ static int32_t flipagotchi_cmd_worker(void* context){
         }
 
     }
+
+
+    FURI_LOG_I("PWN", "free uart worker");
+    furi_thread_flags_set(furi_thread_get_id(app->uart_worker_thread), WorkerEventStop);
+    furi_thread_join(app->uart_worker_thread);
+    furi_thread_free(app->uart_worker_thread);
+
+    FURI_LOG_I("PWN", "free stream buffer");
+    furi_stream_buffer_free(app->rx_stream);
+
     return 0;
 }
 
 static FlipagotchiApp* flipagotchi_app_alloc() {
     FURI_LOG_I("PWN", "starting alloc");
     FlipagotchiApp* app = malloc(sizeof(FlipagotchiApp));
-
-    app->rx_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
 
     // Gui
     app->gui = furi_record_open(RECORD_GUI);
@@ -407,18 +447,6 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     // Queue
     app->queue = protocol_queue_alloc();
 
-    // Enable uart listener
-    if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1) {
-      // when using the main uart, aka the ones labeled on the flippper, we
-      // MUST DISABLE CONSOLE OR ELSE IT DIRTIES OUR UART!
-      // this is annoying for debugging :(
-      furi_hal_console_disable();
-    } else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1) {
-      furi_hal_uart_init(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
-    }
-    furi_hal_uart_set_br(PWNAGOTCHI_UART_CHANNEL, PWNAGOTCHI_UART_BAUD);
-    furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, flipagotchi_on_irq_cb, app);
-
     // command parser thread
     app->cmd_worker_thread = furi_thread_alloc();
     furi_thread_set_name(app->cmd_worker_thread, "FlipagotchiCommandWorker");
@@ -426,14 +454,6 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     furi_thread_set_context(app->cmd_worker_thread, app);
     furi_thread_set_callback(app->cmd_worker_thread, flipagotchi_cmd_worker);
     furi_thread_start(app->cmd_worker_thread);
-
-    // uart thread
-    app->worker_thread = furi_thread_alloc();
-    furi_thread_set_name(app->worker_thread, "FlipagotchiWorker");
-    furi_thread_set_stack_size(app->worker_thread, 1024);
-    furi_thread_set_context(app->worker_thread, app);
-    furi_thread_set_callback(app->worker_thread, flipagotchi_worker);
-    furi_thread_start(app->worker_thread);
 
     FURI_LOG_I("PWN", "ALLC'd");
 
@@ -444,27 +464,11 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
     FURI_LOG_I("PWN", "freeing!");
     furi_assert(app);
 
-    FURI_LOG_I("PWN", "free command worker");
-    // free command worker
+    FURI_LOG_I("PWN", "free cmd worker");
+    // free workers
     furi_thread_flags_set(furi_thread_get_id(app->cmd_worker_thread), WorkerEventStop);
     furi_thread_join(app->cmd_worker_thread);
     furi_thread_free(app->cmd_worker_thread);
-
-    FURI_LOG_I("PWN", "free uart worker");
-    // free uart worker
-    furi_thread_flags_set(furi_thread_get_id(app->worker_thread), WorkerEventStop);
-    furi_thread_join(app->worker_thread);
-    furi_thread_free(app->worker_thread);
-
-    FURI_LOG_I("PWN", "free uart");
-    // free uart
-    furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, NULL, NULL);
-    if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1){
-      furi_hal_console_enable();
-    }
-    else if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdLPUART1){
-      furi_hal_uart_deinit(PWNAGOTCHI_UART_CHANNEL);
-    }
 
     FURI_LOG_I("PWN", "free queue");
     // Free Queue
@@ -489,9 +493,6 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
     furi_record_close(RECORD_GUI);
     furi_record_close(RECORD_NOTIFICATION);
     app->gui = NULL;
-
-    FURI_LOG_I("PWN", "free stream buffer");
-    furi_stream_buffer_free(app->rx_stream);
 
     FURI_LOG_I("PWN", "free app");
     // Free rest
