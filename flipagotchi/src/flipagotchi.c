@@ -28,6 +28,7 @@ typedef struct {
     FuriThread* cmd_worker_thread;
     FuriStreamBuffer* rx_stream;
     ProtocolQueue *queue;
+    bool synack_complete;
 
 } FlipagotchiApp;
 
@@ -69,6 +70,11 @@ const NotificationSequence sequence_notification = {
 /*   } */
 /* } */
 
+static void flipagotchi_send_syn() {
+  uint8_t msg[] = {PACKET_START, CMD_SYN, PACKET_END};
+  furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, msg, sizeof(msg));
+}
+
 static void flipagotchi_send_ack(const uint8_t received_cmd) {
   uint8_t ack_msg[] = {PACKET_START, CMD_ACK, PACKET_END};
   FURI_LOG_I("PWN", "valid command %02X received, replying with ACK", received_cmd);
@@ -87,6 +93,11 @@ static void flipagotchi_send_ui_refresh() {
   furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, msg, sizeof(msg));
 }
 
+static void flipagotchi_uart_init(FlipagotchiApp* app) {
+    app->synack_complete = false;
+    flipagotchi_send_syn();
+}
+
 static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
     if (protocol_queue_has_message(app->queue)) {
         PwnMessage message;
@@ -101,6 +112,21 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
               FURI_LOG_I("PWN", "received ACK");
               //TODO NOT IMPLEMENTED
               //TODO, add logic to ensure every message we send receives an ACK
+
+              if (!app->synack_complete){
+                  app->synack_complete = true;
+                  // this ack is likely an ack to our last syn
+                  // assume that is true, and mark synack complete
+
+                  // either we start first, or the pwnagotchi does
+                  // if the pwn does, then we won't have up to date ui elements
+                  // send a ui refresh.
+                  // if we get a reply, pwn started first
+                  // if we don't get a reply, just move on. we probably started first
+                  // pwn will update us when it gets going
+                  FURI_LOG_I("PWN", "sending ui refresh");
+                  flipagotchi_send_ui_refresh();
+              }
               break;
             }
 
@@ -418,6 +444,8 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     FURI_LOG_I("PWN", "starting alloc");
     FlipagotchiApp* app = malloc(sizeof(FlipagotchiApp));
 
+    app->synack_complete = false;
+
     // Gui
     app->gui = furi_record_open(RECORD_GUI);
     app->notification = furi_record_open(RECORD_NOTIFICATION);
@@ -502,16 +530,7 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
 int32_t flipagotchi_app(void* p) {
     UNUSED(p);
     FlipagotchiApp* app = flipagotchi_app_alloc();
-
-    // either we start first, or the pwnagotchi does
-    // if the pwn does, then we won't have up to date ui elements
-    // send a ui refresh.
-    // if we get a reply, pwn started first
-    // if we don't get a reply, just move on. we probably started first
-    // pwn will update us when it gets going
-    FURI_LOG_I("PWN", "sending ui refresh");
-    flipagotchi_send_ui_refresh();
-
+    flipagotchi_uart_init(app);
     view_dispatcher_run(app->view_dispatcher);
     flipagotchi_app_free(app);
     return 0;

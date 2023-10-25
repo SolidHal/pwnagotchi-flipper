@@ -570,7 +570,9 @@ class PwnZero(plugins.Plugin):
                         # we have some command to handle!
                         logging.info(f"[PwnZero] received flipper message: {msg}")
 
-                        if msg[0] == PwnCommand.UI_REFRESH.value:
+                        if msg[0] == PwnCommand.SYN.value:
+                            self._flipper.send_ack()
+                        elif msg[0] == PwnCommand.UI_REFRESH.value:
                             self.current_ui = None
                             self._flipper.send_ack()
                         else:
