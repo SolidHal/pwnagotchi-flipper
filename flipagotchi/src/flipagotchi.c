@@ -27,6 +27,8 @@ typedef struct {
     FuriThread* worker_thread;
     FuriThread* cmd_worker_thread;
     FuriStreamBuffer* rx_stream;
+    ProtocolQueue *queue;
+
 } FlipagotchiApp;
 
 typedef struct {
@@ -34,8 +36,6 @@ typedef struct {
 } ListElement;
 
 struct PwnDumpModel {
-    ProtocolQueue *queue;
-
     Pwnagotchi* pwn;
 };
 
@@ -86,10 +86,10 @@ static void flipagotchi_send_ui_refresh() {
   furi_hal_uart_tx(PWNAGOTCHI_UART_CHANNEL, msg, sizeof(msg));
 }
 
-static bool flipagotchi_exec_cmd(PwnDumpModel* model) {
-    if (protocol_queue_has_message(model->queue)) {
+static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
+    if (protocol_queue_has_message(app->queue)) {
         PwnMessage message;
-        protocol_queue_pop_message(model->queue, &message);
+        protocol_queue_pop_message(app->queue, &message);
         FURI_LOG_I("PWN", "Has message (code: %02X), processing...", message.code);
 
         // See what the message wants
@@ -277,7 +277,6 @@ static void flipagotchi_view_draw_callback(Canvas* canvas, void* _model) {
     PwnDumpModel* model = _model;
 
     pwnagotchi_draw_all(model->pwn, canvas);
-
 }
 
 static bool flipagotchi_view_input_callback(InputEvent* event, void* context) {
@@ -316,7 +315,6 @@ static int32_t flipagotchi_worker(void* context) {
 
     uint8_t rx_buf[RX_BUF_SIZE + 1];
     while(true) {
-        bool update = false;
         uint32_t events =
             furi_thread_flags_wait(WORKER_EVENTS_MASK, FuriFlagWaitAny, FuriWaitForever);
         furi_check((events & FuriFlagError) == 0);
@@ -325,21 +323,12 @@ static int32_t flipagotchi_worker(void* context) {
         if(events & WorkerEventRx) {
             size_t length = furi_stream_buffer_receive(app->rx_stream, rx_buf, RX_BUF_SIZE, 0);
             if(length > 0) {
-              // TODO, pretty sure there is no reason for our queue to live in the view model
-              // lets move it out into the main app
-              // it wouldn't hurt to review the queue and ensure its threadsafe while we are at it...
-                with_view_model(
-                    app->view,
-                    PwnDumpModel* model,
-                    {
-                        for(size_t i = 0; i < length; i++) {
-                            protocol_queue_push_byte(model->queue, rx_buf[i]);
-                        }
-                        furi_thread_flags_set(furi_thread_get_id(app->cmd_worker_thread), WorkerEventRx);
-                        update = false;
-                    },
-                    update
-                );
+                // TODO, pretty sure there is no reason for our queue to live in the view model
+                // lets move it out into the main app
+                for(size_t i = 0; i < length; i++) {
+                    protocol_queue_push_byte(app->queue, rx_buf[i]);
+                }
+                furi_thread_flags_set(furi_thread_get_id(app->cmd_worker_thread), WorkerEventRx);
             }
         }
     }
@@ -361,7 +350,7 @@ static int32_t flipagotchi_cmd_worker(void* context){
                     app->view,
                     PwnDumpModel* model,
                     {
-                        update = flipagotchi_exec_cmd(model);
+                        update = flipagotchi_exec_cmd(model, app);
                     },
                     update);
 
@@ -399,7 +388,6 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
         app->view,
         PwnDumpModel * model,
         {
-            model->queue = protocol_queue_alloc();
             model->pwn = pwnagotchi_alloc();
         },
         true);
@@ -407,6 +395,9 @@ static FlipagotchiApp* flipagotchi_app_alloc() {
     view_set_previous_callback(app->view, flipagotchi_exit);
     view_dispatcher_add_view(app->view_dispatcher, 0, app->view);
     view_dispatcher_switch_to_view(app->view_dispatcher, 0);
+
+    // Queue
+    app->queue = protocol_queue_alloc();
 
     // Enable uart listener
     if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1) {
@@ -464,6 +455,9 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
       furi_hal_uart_deinit(PWNAGOTCHI_UART_CHANNEL);
     }
 
+    // Free Queue
+    protocol_queue_free(app->queue);
+
     // Free views
     view_dispatcher_remove_view(app->view_dispatcher, 0);
 
@@ -471,7 +465,6 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
         app->view,
         PwnDumpModel * model,
         {
-            protocol_queue_free(model->queue);
             pwnagotchi_free(model->pwn);
         },
         true);
