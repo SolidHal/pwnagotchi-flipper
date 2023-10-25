@@ -35,6 +35,7 @@ typedef struct {
     FuriString* text;
 } ListElement;
 
+// TODO keep byte in model indicating *what* needs to be updated
 struct PwnDumpModel {
     Pwnagotchi* pwn;
 };
@@ -115,7 +116,8 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                 flipagotchi_send_ack(message.code);
 
                 model->pwn->face = message.arguments[0];
-                break;
+
+                return true;
             }
 
             // Process Name
@@ -134,7 +136,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
 
                     model->pwn->hostname[i] = message.arguments[i];
                 }
-                break;
+                return true;
             }
 
             // Process channel
@@ -153,7 +155,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
 
                     model->pwn->channel[i] = message.arguments[i];
                 }
-                break;
+                return true;
             }
 
             // Process APS (Access Points)
@@ -171,7 +173,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                     }
                     model->pwn->apStat[i] = message.arguments[i];
                 }
-                break;
+                return true;
             }
 
             // Process uptime
@@ -189,7 +191,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                     }
                     model->pwn->uptime[i] = message.arguments[i];
                 }
-                break;
+                return true;
             }
 
             // Process friend
@@ -197,8 +199,9 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                 // send ack before handling to avoid stalling the pwnagotchi
                 flipagotchi_send_ack(message.code);
 
-                // Friend not implemented yet
-                break;
+                // Friend not implemented yet,
+                // nothing to update
+                return false;
             }
 
             // Process mode
@@ -224,7 +227,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                 }
                 model->pwn->mode = mode;
 
-                break;
+                return true;
             }
 
             // Process Handshakes
@@ -242,7 +245,7 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                     }
                     model->pwn->handshakes[i] = message.arguments[i];
                 }
-                break;
+                return true;
             }
 
             // Process status
@@ -260,12 +263,13 @@ static bool flipagotchi_exec_cmd(PwnDumpModel* model, FlipagotchiApp* app) {
                     model->pwn->status[i] = message.arguments[i];
                 }
                 FURI_LOG_I("PWN", "rec status: %s", model->pwn->status);
-                break;
+                return true;
             }
             default: {
                 // didn't match any of the known FLIPPER_CMDs
                 // reply with a NAK
                 flipagotchi_send_nak(message.code);
+                return false;
             }
         }
     }
@@ -319,7 +323,9 @@ static int32_t flipagotchi_worker(void* context) {
             furi_thread_flags_wait(WORKER_EVENTS_MASK, FuriFlagWaitAny, FuriWaitForever);
         furi_check((events & FuriFlagError) == 0);
 
-        if(events & WorkerEventStop) break;
+        if(events & WorkerEventStop){
+            return 0;
+        }
         if(events & WorkerEventRx) {
             size_t length = furi_stream_buffer_receive(app->rx_stream, rx_buf, RX_BUF_SIZE, 0);
             if(length > 0) {
@@ -344,7 +350,9 @@ static int32_t flipagotchi_cmd_worker(void* context){
             furi_thread_flags_wait(WORKER_EVENTS_MASK, FuriFlagWaitAny, FuriWaitForever);
         furi_check((events & FuriFlagError) == 0);
 
-        if(events & WorkerEventStop) break;
+        if(events & WorkerEventStop) {
+            return 0;
+        }
         if(events & WorkerEventRx) {
             with_view_model(
                     app->view,
@@ -436,16 +444,19 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
     FURI_LOG_I("PWN", "freeing!");
     furi_assert(app);
 
+    FURI_LOG_I("PWN", "free command worker");
     // free command worker
     furi_thread_flags_set(furi_thread_get_id(app->cmd_worker_thread), WorkerEventStop);
     furi_thread_join(app->cmd_worker_thread);
     furi_thread_free(app->cmd_worker_thread);
 
+    FURI_LOG_I("PWN", "free uart worker");
     // free uart worker
     furi_thread_flags_set(furi_thread_get_id(app->worker_thread), WorkerEventStop);
     furi_thread_join(app->worker_thread);
     furi_thread_free(app->worker_thread);
 
+    FURI_LOG_I("PWN", "free uart");
     // free uart
     furi_hal_uart_set_irq_cb(PWNAGOTCHI_UART_CHANNEL, NULL, NULL);
     if(PWNAGOTCHI_UART_CHANNEL == FuriHalUartIdUSART1){
@@ -455,9 +466,11 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
       furi_hal_uart_deinit(PWNAGOTCHI_UART_CHANNEL);
     }
 
+    FURI_LOG_I("PWN", "free queue");
     // Free Queue
     protocol_queue_free(app->queue);
 
+    FURI_LOG_I("PWN", "free views");
     // Free views
     view_dispatcher_remove_view(app->view_dispatcher, 0);
 
@@ -471,13 +484,16 @@ static void flipagotchi_app_free(FlipagotchiApp* app) {
     view_free(app->view);
     view_dispatcher_free(app->view_dispatcher);
 
+    FURI_LOG_I("PWN", "free gui");
     // Close gui record
     furi_record_close(RECORD_GUI);
     furi_record_close(RECORD_NOTIFICATION);
     app->gui = NULL;
 
+    FURI_LOG_I("PWN", "free stream buffer");
     furi_stream_buffer_free(app->rx_stream);
 
+    FURI_LOG_I("PWN", "free app");
     // Free rest
     free(app);
 }
