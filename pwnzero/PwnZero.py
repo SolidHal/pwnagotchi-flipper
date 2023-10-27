@@ -578,6 +578,11 @@ class PwnZero(plugins.Plugin):
                         elif msg[0] == PwnCommand.UI_REFRESH.value:
                             self.current_ui = None
                             self._flipper.send_ack()
+                        elif msg[0] == PwnCommand.ACK.value:
+                            pass
+                        elif msg[0] == PwnCommand.NAK.value:
+                            logging.info(f"[PwnZero] received NAK")
+                            pass
                         else:
                             logging.info(f"[PwnZero] received flipper message, but not able to handle command.: {msg}")
                             self._flipper.send_nak()
