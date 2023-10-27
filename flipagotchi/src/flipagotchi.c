@@ -586,6 +586,7 @@ int32_t flipagotchi_app(void* p) {
     flipagotchi_uart_init(app);
     flipagotchi_app_run(app);
     flipagotchi_app_free(app);
+    free(app);
     FURI_LOG_I("PWN", "free complete");
     return 0;
 }
