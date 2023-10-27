@@ -2,9 +2,9 @@
 
 ProtocolQueue* protocol_queue_alloc() {
     ProtocolQueue* instance = malloc(sizeof(ProtocolQueue));
-    instance->message_queue = furi_message_queue_alloc(PWNAGOTCHI_PROTOCOL_MESSAGE_QUEUE_SIZE, PWNAGOTCHI_PROTOCOL_MAX_MESSAGE_SIZE);
+    instance->message_queue = furi_message_queue_alloc(PWNAGOTCHI_PROTOCOL_MESSAGE_QUEUE_SIZE, sizeof(PwnMessage));
 
-    instance->cur_message = malloc(PWNAGOTCHI_PROTOCOL_MAX_MESSAGE_SIZE);
+    instance->cur_message = malloc(sizeof(PwnMessage));
 
     instance->cur_message_len = 0;
     instance->cur_message_valid=false;
@@ -13,11 +13,16 @@ ProtocolQueue* protocol_queue_alloc() {
 }
 
 void protocol_queue_free(ProtocolQueue* instance) {
+    FURI_LOG_W("PWN", "freeing furi message queue");
     furi_message_queue_free(instance->message_queue);
+    FURI_LOG_W("PWN", "cur message");
     free(instance->cur_message);
+    FURI_LOG_W("PWN", "our instance");
     free(instance);
 
+    FURI_LOG_W("PWN", "protocol_queue_free setting our instance NULL");
     instance = NULL;
+    FURI_LOG_W("PWN", "protocol_queue_free done");
 }
 
 bool protocol_queue_has_message(ProtocolQueue* instance) {
@@ -55,14 +60,14 @@ void protocol_queue_push_byte(ProtocolQueue* instance, uint8_t byte) {
             FURI_LOG_W("PWN", "message_queue is full! dropping message");
             return;
         }
-        furi_message_queue_put(instance->message_queue, instance->cur_message, 0);
+        furi_message_queue_put(instance->message_queue, instance->cur_message, FuriWaitForever);
         // now that its copied into the queue, clear cur_message
         instance->cur_message_valid = false;
         memset(instance->cur_message, 0, instance->cur_message_len);
         return;
     }
 
-    if (instance->cur_message_len + 1 > PWNAGOTCHI_PROTOCOL_MAX_MESSAGE_SIZE){
+    if (instance->cur_message_len + 1 > sizeof(PwnMessage)){
         FURI_LOG_W("PWN", "cur_message is full! dropping byte");
         return;
     }
@@ -76,7 +81,7 @@ void protocol_queue_push_byte(ProtocolQueue* instance, uint8_t byte) {
 
 void protocol_queue_wipe(ProtocolQueue* instance) {
     // Set everything to 0
-    memset(instance->cur_message, 0, PWNAGOTCHI_PROTOCOL_MAX_MESSAGE_SIZE);
+    memset(instance->cur_message, 0, sizeof(PwnMessage));
     instance->cur_message_len = 0;
     furi_message_queue_reset(instance->message_queue);
 }
@@ -89,6 +94,6 @@ bool protocol_queue_pop_message(ProtocolQueue* instance, PwnMessage* dest) {
     }
 
     FURI_LOG_I("PWN", "grabbing the message!");
-    furi_message_queue_get(instance->message_queue, dest, 0);
+    furi_message_queue_get(instance->message_queue, dest, FuriWaitForever);
     return true;
 }

@@ -15,15 +15,16 @@ https://github.com/RogueMaster/flipperzero-firmware-wPlugins/commit/8c45f8e9a921
 Pwnagotchi* pwnagotchi_alloc() {
     Pwnagotchi* pwn = malloc(sizeof(Pwnagotchi));
 
-    pwn->face = Cool;
+    //TODO UNCOMMENT, debugging crashes
+    /* pwn->face = Cool; */
 
-    strncpy(pwn->channel, "*", 2);
-    strncpy(pwn->apStat, "0 (0)", 6);
-    strncpy(pwn->uptime, "00:00:00", 9);
-    strncpy(pwn->hostname, "pwn", 4);
-    strncpy(pwn->status, "Hack the planet!", 17);
-    strncpy(pwn->handshakes, "0 (0)", 6);
-    pwn->mode = PwnMode_Manual;
+    /* strncpy(pwn->channel, "*", 2); */
+    /* strncpy(pwn->apStat, "0 (0)", 6); */
+    /* strncpy(pwn->uptime, "00:00:00", 9); */
+    /* strncpy(pwn->hostname, "pwn", 4); */
+    /* strncpy(pwn->status, "Hack the planet!", 17); */
+    /* strncpy(pwn->handshakes, "0 (0)", 6); */
+    /* pwn->mode = PwnMode_Manual; */
 
     return pwn;
 }
@@ -198,6 +199,12 @@ void pwnagotchi_draw_mode(Pwnagotchi* pwn, Canvas* canvas) {
 }
 
 void pwnagotchi_draw_status(Pwnagotchi* pwn, Canvas* canvas) {
+
+    // we don't use a monospace font like FontKeyboard because we can fit a lot more characters on average
+    // using FontSecondary. This is a bummer for figuring out how many characters we can fit on screen
+
+    // TODO figure out how to make the multi-line status fit properly
+
     canvas_set_font(canvas, FontSecondary);
     int fontHeight = canvas_current_font_height(canvas);
 
@@ -245,6 +252,13 @@ void pwnagotchi_draw_status(Pwnagotchi* pwn, Canvas* canvas) {
 }
 
 void pwnagotchi_draw_all(Pwnagotchi* pwn, Canvas* canvas) {
+
+    // TODO REMOVE
+    // trying to debug crashes
+    // remove gui from the problem set
+    return;
+
+
     pwnagotchi_draw_face(pwn, canvas);
     pwnagotchi_draw_name(pwn, canvas);
     pwnagotchi_draw_channel(pwn, canvas);
