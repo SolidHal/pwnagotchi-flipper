@@ -4,15 +4,7 @@
 #include <gui/canvas_i.h>
 #include <stdbool.h>
 #include <furi_hal_uart.h>
-
-/// Defines the channel that the pwnagotchi uses
-// TX pin 15, RX pin 16
-#define PWNAGOTCHI_UART_CHANNEL FuriHalUartIdLPUART1
-// TX pin 13, RX pin 14
-/* #define PWNAGOTCHI_UART_CHANNEL FuriHalUartIdUSART1 */
-
-/// Defines the baudrate that the pwnagotchi will use
-#define PWNAGOTCHI_UART_BAUD 115200
+#include <gui/view.h>
 
 /// Max length of channel data at top left
 #define PWNAGOTCHI_MAX_CHANNEL_LEN 4
@@ -40,7 +32,6 @@
 
 /// Width of flipper screen
 #define FLIPPER_SCREEN_WIDTH 128
-
 
 #define PWNAGOTCHI_HEIGHT FLIPPER_SCREEN_HEIGHT
 #define PWNAGOTCHI_WIDTH FLIPPER_SCREEN_WIDTH
@@ -145,6 +136,7 @@ enum PwnagotchiMode {
     PwnMode_Ai
 };
 
+
 typedef struct {
     /// Current face
     enum PwnagotchiFace face;
@@ -164,6 +156,11 @@ typedef struct {
     /// Current mode the pwnagotchi is in
     enum PwnagotchiMode mode;
 
+} PwnagotchiModel;
+
+typedef struct {
+  View* view;
+  void* context;
 } Pwnagotchi;
 
 /**
@@ -180,13 +177,15 @@ Pwnagotchi* pwnagotchi_alloc();
  */
 void pwnagotchi_free(Pwnagotchi* pwn);
 
+View* pwnagotchi_get_view(Pwnagotchi* pwn);
+
 /**
  * Draw the default display with no additional information provided
  * 
  * @param pwn Pwnagotchi device to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_blank(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_blank(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw the stored pwnagotchi's face on the device
@@ -194,7 +193,7 @@ void pwnagotchi_draw_blank(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_face(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_face(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw the name of the pwnagotchi
@@ -202,7 +201,7 @@ void pwnagotchi_draw_face(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_name(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_name(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw channel on pwnagotchi
@@ -210,7 +209,7 @@ void pwnagotchi_draw_name(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_channel(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_channel(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw aps on pwnagotchi
@@ -218,7 +217,7 @@ void pwnagotchi_draw_channel(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_aps(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_aps(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw uptime on pwnagotchi
@@ -226,7 +225,7 @@ void pwnagotchi_draw_aps(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_uptime(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_uptime(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw lines on pwnagotchi
@@ -234,7 +233,7 @@ void pwnagotchi_draw_uptime(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_lines(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_lines(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw current mode of pwnagotchi
@@ -242,7 +241,7 @@ void pwnagotchi_draw_lines(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_mode(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_mode(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw the number of handshakes in the PWND portion as well as the last handshake
@@ -250,7 +249,7 @@ void pwnagotchi_draw_mode(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_handshakes(Pwnagotchi* pwn, Canvas* canvas);
+void pwnagotchi_draw_handshakes(PwnagotchiModel* model, Canvas* canvas);
 
 /**
  * Draw the status that the pwnagotchi is showing on the screen
@@ -258,20 +257,4 @@ void pwnagotchi_draw_handshakes(Pwnagotchi* pwn, Canvas* canvas);
  * @param pwn Pwnagotchi to draw
  * @param canvas Canvas to draw on
  */
-void pwnagotchi_draw_status(Pwnagotchi* pwn, Canvas* canvas);
-
-/**
- * Runs all drawing functions to update the screen completely
- * 
- * @param pwn Pwnagotchi to draw
- * @param canvas Canvas to draw on
- */
-void pwnagotchi_draw_all(Pwnagotchi* pwn, Canvas* canvas);
-
-/**
- * Clears the screen buffer of the pwnagotchi
- * 
- * @param pwn Pwn to clear
- */
-void pwnagotchi_screen_clear(Pwnagotchi* pwn);
-
+void pwnagotchi_draw_status(PwnagotchiModel* model, Canvas* canvas);

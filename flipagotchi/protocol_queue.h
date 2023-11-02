@@ -4,7 +4,6 @@
 #include <core/message_queue.h>
 
 #include "protocol.h"
-#include "pwnagotchi.h"
 
 typedef struct {
 

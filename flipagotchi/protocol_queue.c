@@ -1,4 +1,4 @@
-#include "../include/protocol_queue.h"
+#include "protocol_queue.h"
 
 ProtocolQueue* protocol_queue_alloc() {
     ProtocolQueue* instance = malloc(sizeof(ProtocolQueue));
