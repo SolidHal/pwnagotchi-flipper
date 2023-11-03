@@ -69,33 +69,31 @@ class PwnFace(Enum):
     """
     Embedded class with all face parameters
     """
-    NO_FACE         = 0x04
-    DEFAULT_FACE    = 0x05
-    LOOK_R          = 0x06
-    LOOK_L          = 0x07
-    LOOK_R_HAPPY    = 0x08
-    LOOK_L_HAPPY    = 0x09
-    SLEEP           = 0x0A
-    SLEEP2          = 0x0B
-    AWAKE           = 0x0C
-    BORED           = 0x0D
-    INTENSE         = 0x0E
-    COOL            = 0x0F
-    HAPPY           = 0x10
-    GRATEFUL        = 0x11
-    EXCITED         = 0x12
-    MOTIVATED       = 0x13
-    DEMOTIVATED     = 0x14
-    SMART           = 0x15
-    LONELY          = 0x16
-    SAD             = 0x17
-    ANGRY           = 0x18
-    FRIEND          = 0x19
-    BROKEN          = 0x1A
-    DEBUG           = 0x1B
-    UPLOAD          = 0x1C
-    UPLOAD1         = 0x1D
-    UPLOAD2         = 0x1E
+    LOOK_R          = 0x04
+    LOOK_L          = 0x05
+    LOOK_R_HAPPY    = 0x06
+    LOOK_L_HAPPY    = 0x07
+    SLEEP           = 0x08
+    SLEEP2          = 0x09
+    AWAKE           = 0x0A
+    BORED           = 0x0B
+    INTENSE         = 0x0C
+    COOL            = 0x0D
+    HAPPY           = 0x0E
+    GRATEFUL        = 0x0F
+    EXCITED         = 0x10
+    MOTIVATED       = 0x11
+    DEMOTIVATED     = 0x12
+    SMART           = 0x13
+    LONELY          = 0x14
+    SAD             = 0x15
+    ANGRY           = 0x16
+    FRIEND          = 0x17
+    BROKEN          = 0x18
+    DEBUG           = 0x19
+    UPLOAD          = 0x1A
+    UPLOAD1         = 0x1B
+    UPLOAD2         = 0x1C
 
 class SerialConnException(Exception):
     pass

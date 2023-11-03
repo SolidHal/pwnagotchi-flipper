@@ -1,11 +1,5 @@
 #include "pwnagotchi.h"
 
-/*
-Icons from RogueMaster at:
-https://github.com/RogueMaster/flipperzero-firmware-wPlugins/commit/8c45f8e9a921f61cda78ecdb2e58a244041d3e05
-*/
-#include "flipagotchi_icons.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -13,99 +7,17 @@ https://github.com/RogueMaster/flipperzero-firmware-wPlugins/commit/8c45f8e9a921
 #include <furi.h>
 
 void pwnagotchi_draw_face(PwnagotchiModel* model, Canvas* canvas) {
-    const Icon* currentFace;
-    bool draw = true;
+    FURI_LOG_I("PWN", "drawing face %d", model->face);
 
-    switch(model->face) {
-    case NoFace:
-        // Draw nothing
-        draw = false;
-        break;
-    case DefaultFace:
-        currentFace = &I_awake_flipagotchi;
-        break;
-    case Look_r:
-        currentFace = &I_look_r_flipagotchi;
-        break;
-    case Look_l:
-        currentFace = &I_look_l_flipagotchi;
-        break;
-    case Look_r_happy:
-        currentFace = &I_look_r_happy_flipagotchi;
-        break;
-    case Look_l_happy:
-        currentFace = &I_look_l_happy_flipagotchi;
-        break;
-    case Sleep:
-        currentFace = &I_sleep_flipagotchi;
-        break;
-    case Sleep2:
-        currentFace = &I_sleep2_flipagotchi;
-        break;
-    case Awake:
-        currentFace = &I_awake_flipagotchi;
-        break;
-    case Bored:
-        currentFace = &I_bored_flipagotchi;
-        break;
-    case Intense:
-        currentFace = &I_intense_flipagotchi;
-        break;
-    case Cool:
-        currentFace = &I_cool_flipagotchi;
-        break;
-    case Happy:
-        currentFace = &I_happy_flipagotchi;
-        break;
-    case Grateful:
-        currentFace = &I_grateful_flipagotchi;
-        break;
-    case Excited:
-        currentFace = &I_excited_flipagotchi;
-        break;
-    case Motivated:
-        currentFace = &I_motivated_flipagotchi;
-        break;
-    case Demotivated:
-        currentFace = &I_demotivated_flipagotchi;
-        break;
-    case Smart:
-        currentFace = &I_smart_flipagotchi;
-        break;
-    case Lonely:
-        currentFace = &I_lonely_flipagotchi;
-        break;
-    case Sad:
-        currentFace = &I_sad_flipagotchi;
-        break;
-    case Angry:
-        currentFace = &I_angry_flipagotchi;
-        break;
-    case Friend:
-        currentFace = &I_friend_flipagotchi;
-        break;
-    case Broken:
-        currentFace = &I_broken_flipagotchi;
-        break;
-    case Debug:
-        currentFace = &I_debug_flipagotchi;
-        break;
-    case Upload:
-        currentFace = &I_upload_flipagotchi;
-        break;
-    case Upload1:
-        currentFace = &I_upload1_flipagotchi;
-        break;
-    case Upload2:
-        currentFace = &I_upload2_flipagotchi;
-        break;
-    default:
-        draw = false;
+    if(model->face < 4 || model->face >= EndFace) {
+        FURI_LOG_W("PWN", "asked to draw invalid face %d", model->face);
+        return;
     }
 
-    if(draw) {
-        canvas_draw_icon(canvas, PWNAGOTCHI_FACE_J, PWNAGOTCHI_FACE_I, currentFace);
-    }
+    // subtract 4 from our PwnagotchiFace value to skip over the reserved values
+    // since PwnagotchiFaceIcons is 0 indexed, while PwnagotchiFace is 4 indexed
+    canvas_draw_icon(
+        canvas, PWNAGOTCHI_FACE_J, PWNAGOTCHI_FACE_I, PwnagotchiFaceIcons[model->face - 4]);
 }
 
 void pwnagotchi_draw_name(PwnagotchiModel* model, Canvas* canvas) {
@@ -271,16 +183,15 @@ Pwnagotchi* pwnagotchi_alloc() {
         {
             model->face = Cool;
 
-            strncpy(model->channel, "*", 2);
-            strncpy(model->apStat, "0 (0)", 6);
-            strncpy(model->uptime, "00:00:00", 9);
-            strncpy(model->hostname, "pwn", 4);
-            strncpy(model->status, "Hack the planet!", 17);
-            strncpy(model->handshakes, "0 (0)", 6);
+            strlcpy(model->channel, "*", sizeof(model->channel));
+            strlcpy(model->apStat, "0 (0)", sizeof(model->apStat));
+            strlcpy(model->uptime, "00:00:00", sizeof(model->uptime));
+            strlcpy(model->hostname, "pwn", sizeof(model->hostname));
+            strlcpy(model->status, "Hack the planet!", sizeof(model->status));
+            strlcpy(model->handshakes, "0 (0)", sizeof(model->handshakes));
             model->mode = PwnMode_Manual;
         },
-        false
-    );
+        false);
 
     view_set_context(pwn->view, pwn);
     view_set_draw_callback(pwn->view, pwnagotchi_draw_callback);

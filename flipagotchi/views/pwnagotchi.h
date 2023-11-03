@@ -6,6 +6,12 @@
 #include <furi_hal_uart.h>
 #include <gui/view.h>
 
+/*
+Icons from RogueMaster at:
+https://github.com/RogueMaster/flipperzero-firmware-wPlugins/commit/8c45f8e9a921f61cda78ecdb2e58a244041d3e05
+*/
+#include "flipagotchi_icons.h"
+
 /// Max length of channel data at top left
 #define PWNAGOTCHI_MAX_CHANNEL_LEN 4
 
@@ -35,45 +41,43 @@
 
 #define PWNAGOTCHI_HEIGHT FLIPPER_SCREEN_HEIGHT
 #define PWNAGOTCHI_WIDTH FLIPPER_SCREEN_WIDTH
-#define PWNAGOTCHI_FACE_I           25
-#define PWNAGOTCHI_FACE_J           0
-#define PWNAGOTCHI_NAME_I           17
-#define PWNAGOTCHI_NAME_J           0
-#define PWNAGOTCHI_CHANNEL_I        7
-#define PWNAGOTCHI_CHANNEL_J        0
-#define PWNAGOTCHI_APS_I            7
-#define PWNAGOTCHI_APS_J            25
-#define PWNAGOTCHI_UPTIME_I         7
-#define PWNAGOTCHI_UPTIME_J         77
-#define PWNAGOTCHI_LINE1_START_I    8
-#define PWNAGOTCHI_LINE1_START_J    0
-#define PWNAGOTCHI_LINE1_END_I      8
-#define PWNAGOTCHI_LINE1_END_J      127
-#define PWNAGOTCHI_LINE2_START_I    54
-#define PWNAGOTCHI_LINE2_START_J    0
-#define PWNAGOTCHI_LINE2_END_I      54
-#define PWNAGOTCHI_LINE2_END_J      127
-#define PWNAGOTCHI_HANDSHAKES_I     63
-#define PWNAGOTCHI_HANDSHAKES_J     0
-#define PWNAGOTCHI_MODE_AI_I        63
-#define PWNAGOTCHI_MODE_AI_J        121
-#define PWNAGOTCHI_MODE_AUTO_I      63
-#define PWNAGOTCHI_MODE_AUTO_J      105
-#define PWNAGOTCHI_MODE_MANU_I      63
-#define PWNAGOTCHI_MODE_MANU_J      103
-#define PWNAGOTCHI_STATUS_I        17
-#define PWNAGOTCHI_STATUS_J        60
+#define PWNAGOTCHI_FACE_I 25
+#define PWNAGOTCHI_FACE_J 0
+#define PWNAGOTCHI_NAME_I 17
+#define PWNAGOTCHI_NAME_J 0
+#define PWNAGOTCHI_CHANNEL_I 7
+#define PWNAGOTCHI_CHANNEL_J 0
+#define PWNAGOTCHI_APS_I 7
+#define PWNAGOTCHI_APS_J 25
+#define PWNAGOTCHI_UPTIME_I 7
+#define PWNAGOTCHI_UPTIME_J 77
+#define PWNAGOTCHI_LINE1_START_I 8
+#define PWNAGOTCHI_LINE1_START_J 0
+#define PWNAGOTCHI_LINE1_END_I 8
+#define PWNAGOTCHI_LINE1_END_J 127
+#define PWNAGOTCHI_LINE2_START_I 54
+#define PWNAGOTCHI_LINE2_START_J 0
+#define PWNAGOTCHI_LINE2_END_I 54
+#define PWNAGOTCHI_LINE2_END_J 127
+#define PWNAGOTCHI_HANDSHAKES_I 63
+#define PWNAGOTCHI_HANDSHAKES_J 0
+#define PWNAGOTCHI_MODE_AI_I 63
+#define PWNAGOTCHI_MODE_AI_J 121
+#define PWNAGOTCHI_MODE_AUTO_I 63
+#define PWNAGOTCHI_MODE_AUTO_J 105
+#define PWNAGOTCHI_MODE_MANU_I 63
+#define PWNAGOTCHI_MODE_MANU_J 103
+#define PWNAGOTCHI_STATUS_I 17
+#define PWNAGOTCHI_STATUS_J 60
 
-#define PWNAGOTCHI_FONT             FontSecondary
-
+#define PWNAGOTCHI_FONT FontSecondary
 
 /**
- * Enum to represent possible faces to save them locally rather than transmit every time
+ * Enum to represent possible faces to save them locally rather than transmit every time  Faces are loaded from assets/faces/ which gets complied as flipagotchi_icons.h
+   THE NUMBERING MUST MATCH the order in PwnagotchiFaceIcons
  */
 enum PwnagotchiFace {
-    NoFace = 4, // 0, 1, 2, and 3 are reserved values
-    DefaultFace,
-    Look_r,
+    Look_r = 4, // 0, 1, 2, and 3 are reserved values
     Look_l,
     Look_r_happy,
     Look_l_happy,
@@ -97,45 +101,27 @@ enum PwnagotchiFace {
     Debug,
     Upload,
     Upload1,
-    Upload2
+    Upload2,
+    EndFace // a marker to denote the end of the faces enum
 };
 
-/** All of the faces as macros so we don't have to worry about size */
-#define LOOK_R          "( ⚆_⚆)"
-#define LOOK_L          "(☉_☉ )"
-#define LOOK_R_HAPPY    "( ◕‿◕)"
-#define LOOK_L_HAPPY    "(◕‿◕ )"
-#define SLEEP           "(⇀‿‿↼)"
-#define SLEEP2          "(≖‿‿≖)"
-#define AWAKE           "(◕‿‿◕)"
-#define BORED           "(-__-)"
-#define INTENSE         "(°▃▃°)"
-#define COOL            "(⌐■_■)"
-#define HAPPY           "(•‿‿•)"
-#define GRATEFUL        "(^‿‿^)"
-#define EXCITED         "(ᵔ◡◡ᵔ)"
-#define MOTIVATED       "(☼‿‿☼)"
-#define DEMOTIVATED     "(≖__≖)"
-#define SMART           "(✜‿‿✜)"
-#define LONELY          "(ب__ب)"
-#define SAD             "(╥☁╥ )"
-#define ANGRY           "(-_-')"
-#define FRIEND          "(♥‿‿♥)"
-#define BROKEN          "(☓‿‿☓)"
-#define DEBUG           "(#__#)"
-#define UPLOAD          "(1__0)"
-#define UPLOAD1         "(1__1)"
-#define UPLOAD2         "(0__1)"
+// The Order must match the numbering in the PwnagotchiFace enum
+static const Icon* const PwnagotchiFaceIcons[25] = {
+    &I_look_r_flipagotchi,       &I_look_l_flipagotchi,    &I_look_r_happy_flipagotchi,
+    &I_look_l_happy_flipagotchi, &I_sleep_flipagotchi,     &I_sleep2_flipagotchi,
+    &I_awake_flipagotchi,        &I_bored_flipagotchi,     &I_intense_flipagotchi,
+    &I_cool_flipagotchi,         &I_happy_flipagotchi,     &I_grateful_flipagotchi,
+    &I_excited_flipagotchi,      &I_motivated_flipagotchi, &I_demotivated_flipagotchi,
+    &I_smart_flipagotchi,        &I_lonely_flipagotchi,    &I_sad_flipagotchi,
+    &I_angry_flipagotchi,        &I_friend_flipagotchi,    &I_broken_flipagotchi,
+    &I_debug_flipagotchi,        &I_upload_flipagotchi,    &I_upload1_flipagotchi,
+    &I_upload2_flipagotchi,
+};
 
 /**
  * Enum for current mode of the pwnagotchi
  */
-enum PwnagotchiMode {
-    PwnMode_Manual,
-    PwnMode_Auto,
-    PwnMode_Ai
-};
-
+enum PwnagotchiMode { PwnMode_Manual, PwnMode_Auto, PwnMode_Ai };
 
 typedef struct {
     /// Current face
@@ -159,8 +145,8 @@ typedef struct {
 } PwnagotchiModel;
 
 typedef struct {
-  View* view;
-  void* context;
+    View* view;
+    void* context;
 } Pwnagotchi;
 
 /**
