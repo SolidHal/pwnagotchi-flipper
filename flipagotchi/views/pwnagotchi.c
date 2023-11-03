@@ -242,11 +242,6 @@ void pwnagotchi_draw_status(PwnagotchiModel* model, Canvas* canvas) {
 static void pwnagotchi_draw_callback(Canvas* canvas, void* _model) {
     PwnagotchiModel* model = _model;
 
-    // TODO REMOVE
-    // trying to debug crashes
-    // remove gui from the problem set
-    return;
-
     pwnagotchi_draw_face(model, canvas);
     pwnagotchi_draw_name(model, canvas);
     pwnagotchi_draw_channel(model, canvas);
@@ -290,7 +285,6 @@ Pwnagotchi* pwnagotchi_alloc() {
     view_set_context(pwn->view, pwn);
     view_set_draw_callback(pwn->view, pwnagotchi_draw_callback);
     view_set_input_callback(pwn->view, pwnagotchi_input_callback);
-
 
     return pwn;
 }
